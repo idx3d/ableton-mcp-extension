@@ -137,17 +137,43 @@ export class FakeLive implements LivePort {
   }
 
   async createMidiClip(
-    _trackId: TrackId,
-    _sceneId: SceneId,
-    _lengthBeats: number,
-    _notes: Note[],
-    _name?: string,
+    trackId: TrackId,
+    sceneId: SceneId,
+    lengthBeats: number,
+    notes: Note[],
+    name?: string,
   ): Promise<ClipDetail> {
-    throw new PortError("UNSUPPORTED", "createMidiClip not implemented yet");
+    const track = this.requireTrack(trackId);
+    this.requireScene(sceneId);
+    if (track.type !== "midi") {
+      throw new PortError(
+        "INVALID_INPUT",
+        `track ${trackId} is an audio track`,
+        "MIDI clips can only be created on MIDI tracks.",
+      );
+    }
+    if (track.clips.has(sceneId)) {
+      throw new PortError(
+        "CONFLICT",
+        `slot ${trackId}/${sceneId} already has a clip`,
+        "Delete the existing clip first, or pick an empty slot (see get_track).",
+      );
+    }
+    const clip: FakeClip = {
+      id: this.mintClipId(),
+      name: name ?? "",
+      lengthBeats,
+      looping: true,
+      notes: notes.map((n) => [...n] as Note),
+    };
+    track.clips.set(sceneId, clip);
+    return this.getClip(clip.id);
   }
 
-  async replaceClipNotes(_id: ClipId, _notes: Note[]): Promise<void> {
-    throw new PortError("UNSUPPORTED", "replaceClipNotes not implemented yet");
+  async replaceClipNotes(id: ClipId, notes: Note[]): Promise<void> {
+    const found = this.findClip(id);
+    if (!found) throw PortError.notFound("clip", id);
+    found.clip.notes = notes.map((n) => [...n] as Note);
   }
 
   async updateSong(patch: SongPatch): Promise<void> {
