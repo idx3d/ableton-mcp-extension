@@ -14,7 +14,7 @@ export async function runTool(
 ): Promise<ToolResult> {
   try {
     const value = await fn();
-    return { ok: true, ...(value as Record<string, unknown>) };
+    return { ...(value as Record<string, unknown>), ok: true };
   } catch (error) {
     if (error instanceof PortError) {
       return {

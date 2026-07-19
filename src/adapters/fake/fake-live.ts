@@ -85,7 +85,7 @@ export class FakeLive implements LivePort {
       ...this.summarizeClip(clip),
       trackId: track.id,
       sceneId,
-      notes: clip.notes.map((n) => [...n] as Note),
+      notes: this.cloneNotes(clip.notes),
     };
   }
 
@@ -164,7 +164,7 @@ export class FakeLive implements LivePort {
       name: name ?? "",
       lengthBeats,
       looping: true,
-      notes: notes.map((n) => [...n] as Note),
+      notes: this.cloneNotes(notes),
     };
     track.clips.set(sceneId, clip);
     return this.getClip(clip.id);
@@ -173,7 +173,7 @@ export class FakeLive implements LivePort {
   async replaceClipNotes(id: ClipId, notes: Note[]): Promise<void> {
     const found = this.findClip(id);
     if (!found) throw PortError.notFound("clip", id);
-    found.clip.notes = notes.map((n) => [...n] as Note);
+    found.clip.notes = this.cloneNotes(notes);
   }
 
   async updateSong(patch: SongPatch): Promise<void> {
@@ -187,6 +187,12 @@ export class FakeLive implements LivePort {
   }
 
   // -- internals ------------------------------------------------------------
+
+  private cloneNotes(notes: Note[]): Note[] {
+    return notes.map((n) =>
+      (n.length === 5 ? [n[0], n[1], n[2], n[3], { ...n[4] }] : [...n]) as Note,
+    );
+  }
 
   private summarize(track: FakeTrack): TrackSummary {
     return {

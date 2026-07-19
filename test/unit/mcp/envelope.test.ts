@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PortError } from "../../../src/port/errors.js";
 import { runTool } from "../../../src/mcp/envelope.js";
 
@@ -21,9 +21,11 @@ describe("runTool", () => {
   });
 
   it("maps unexpected errors to INTERNAL without leaking details", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await runTool(async () => {
       throw new Error("secret stack detail");
     });
+    spy.mockRestore();
     expect(result).toMatchObject({ ok: false, code: "INTERNAL" });
     expect(JSON.stringify(result)).not.toContain("secret");
   });

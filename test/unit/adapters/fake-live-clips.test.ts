@@ -70,4 +70,15 @@ describe("FakeLive MIDI clips", () => {
     await fake.deleteTracks(["t1"]);
     expect(() => fake.getClip("c1")).toThrow();
   });
+
+  it("does not share NoteExtras objects with the caller", async () => {
+    const extras = { prob: 0.5 };
+    const notes: Note[] = [[60, 0, 1, 100, extras]];
+    await fake.createMidiClip("t1", "s1", 4, notes);
+    extras.prob = 0.9;
+    expect(fake.getClip("c1").notes).toEqual([[60, 0, 1, 100, { prob: 0.5 }]]);
+    const returned = fake.getClip("c1").notes[0];
+    (returned[4] as { prob: number }).prob = 0.1;
+    expect(fake.getClip("c1").notes[0][4]).toEqual({ prob: 0.5 });
+  });
 });
