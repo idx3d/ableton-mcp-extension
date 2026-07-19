@@ -1,0 +1,87 @@
+import { createServer as createNodeServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+
+export interface HttpOptions {
+  /** 0 = let the OS pick (tests). Production default: 20808. */
+  port: number;
+  token: string;
+  createServer(): McpServer;
+}
+
+export interface RunningHttpServer {
+  port: number;
+  url: string;
+  close(): Promise<void>;
+}
+
+const LOCAL_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
+
+function isLocal(value: string): boolean {
+  try {
+    const url = value.includes("://") ? new URL(value) : new URL(`http://${value}`);
+    return LOCAL_HOSTS.includes(url.hostname) || LOCAL_HOSTS.includes(`[${url.hostname}]`);
+  } catch {
+    return false;
+  }
+}
+
+function deny(res: ServerResponse, status: number, message: string): void {
+  res.writeHead(status, { "Content-Type": "application/json" }).end(
+    JSON.stringify({ error: message }),
+  );
+}
+
+/**
+ * Stateless Streamable HTTP endpoint at /mcp, bound to 127.0.0.1 only.
+ * Security (P2, per spec §7): loopback bind, Host/Origin validation, bearer token.
+ */
+export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpServer> {
+  const httpServer = createNodeServer(async (req: IncomingMessage, res: ServerResponse) => {
+    try {
+      const host = req.headers.host ?? "";
+      const origin = req.headers.origin;
+      if (!isLocal(host) || (origin !== undefined && !isLocal(origin))) {
+        return deny(res, 403, "Forbidden: localhost only");
+      }
+      if (req.headers.authorization !== `Bearer ${opts.token}`) {
+        return deny(res, 401, "Unauthorized: missing or invalid bearer token");
+      }
+      const url = new URL(req.url ?? "/", `http://${host}`);
+      if (url.pathname !== "/mcp") {
+        return deny(res, 404, "Not found");
+      }
+
+      // Stateless mode: fresh server + transport per request avoids session state.
+      const mcpServer = opts.createServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+      res.on("close", () => {
+        void transport.close();
+        void mcpServer.close();
+      });
+      await mcpServer.connect(transport);
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      console.error("[ableton-mcp] http error:", error);
+      if (!res.headersSent) deny(res, 500, "Internal server error");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    httpServer.listen(opts.port, "127.0.0.1", resolve);
+  });
+  const address = httpServer.address();
+  const port = typeof address === "object" && address ? address.port : opts.port;
+
+  return {
+    port,
+    url: `http://127.0.0.1:${port}/mcp`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      }),
+  };
+}
