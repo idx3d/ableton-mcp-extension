@@ -48,7 +48,7 @@ playbook in the design spec).
 | Clip create/update/delete audio | `create_audio_clip`, `update_clip`, `delete_clips` | v1 (planned — Plan 2) |
 | Note editing (replace) | `replace_clip_notes` | v1 (implemented) |
 | Note editing (edit) | `edit_clip_notes` | v1 (planned — Plan 2) |
-| Devices | `insert_device`, `set_device_params`, `delete_device` | v1 (planned — Plan 2) |
+| Devices | `get_device`, `insert_device`, `set_device_params`, `delete_device` | v1 (planned — Plan 2) |
 | Mixer | `set_mixer` | v1 (planned — Plan 2) |
 | Song | `update_song` | v1 (implemented) |
 | Audio render / file import | `render_audio`, `import_file` | deferred |
