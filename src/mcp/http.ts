@@ -59,8 +59,8 @@ export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpSer
         enableJsonResponse: true,
       });
       res.on("close", () => {
-        void transport.close();
-        void mcpServer.close();
+        transport.close().catch((err) => console.error("[ableton-mcp] transport close error:", err));
+        mcpServer.close().catch((err) => console.error("[ableton-mcp] server close error:", err));
       });
       await mcpServer.connect(transport);
       await transport.handleRequest(req, res);
@@ -70,8 +70,17 @@ export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpSer
     }
   });
 
-  await new Promise<void>((resolve) => {
-    httpServer.listen(opts.port, "127.0.0.1", resolve);
+  httpServer.on("error", (err) => {
+    console.error("[ableton-mcp] http server error:", err);
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const onListenError = (err: Error) => reject(err);
+    httpServer.once("error", onListenError);
+    httpServer.listen(opts.port, "127.0.0.1", () => {
+      httpServer.removeListener("error", onListenError);
+      resolve();
+    });
   });
   const address = httpServer.address();
   const port = typeof address === "object" && address ? address.port : opts.port;
