@@ -24,12 +24,14 @@ All of Plan 1's constraints remain binding (SDK quarantine — enforced by `npm 
 ### Task 1: Port extensions + FakeLive device/mixer state and reads
 
 **Files:**
+
 - Modify: `src/port/types.ts` (append new types; also extend `SetSnapshot`, `TrackDetail`)
 - Modify: `src/port/live-port.ts` (imports + 5 new methods)
 - Modify: `src/adapters/fake/fake-live.ts`
 - Test: `test/unit/adapters/fake-live-devices.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: existing port DTOs and FakeLive internals (`requireTrack`, `counters`, `summarize`).
 - Produces (used by Tasks 2-6):
   - Types: `DeviceId`, `ReturnTrackId`, `DeviceParam`, `DeviceRef`, `DeviceDetail`, `ReturnTrackSummary`, `SendLevel`, `MixerState`, `MixerPatch`.
@@ -321,10 +323,12 @@ git commit -m "feat: port + FakeLive device/mixer model - DTOs, return tracks, r
 ### Task 2: FakeLive device & mixer writes with a built-in catalog
 
 **Files:**
+
 - Modify: `src/adapters/fake/fake-live.ts` (replace the four stubs; add catalog)
 - Test: `test/unit/adapters/fake-live-device-writes.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: Task 1's types and FakeLive internals (`findDevice`, `requireTrack`, `counters.device`).
 - Produces: working `insertDevice` / `setDeviceParams` / `deleteDevice` / `setMixer` with these semantics:
   - Catalog devices: `"Reverb"`, `"Auto Filter"`, `"Compressor"`, `"Operator"`, `"Wavetable"`, `"Drum Rack"`. Unknown name → `INVALID_INPUT` whose hint lists the known names.
@@ -389,9 +393,9 @@ describe("FakeLive device writes", () => {
     await expect(fake.setDeviceParams("d1", { "Dry/Wet": 2 })).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
-    await expect(fake.setDeviceParams("d1", { "Device On": 0.5 })).rejects.toMatchObject(
-      { code: "INVALID_INPUT" },
-    );
+    await expect(fake.setDeviceParams("d1", { "Device On": 0.5 })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
   });
 
   it("deletes devices; stale IDs then 404", async () => {
@@ -568,11 +572,13 @@ git commit -m "feat: FakeLive device catalog, device writes, mixer writes"
 ### Task 3: DeviceService + SetInspector.getDevice
 
 **Files:**
+
 - Create: `src/domain/device-service.ts`
 - Modify: `src/domain/set-inspector.ts` (add `getDevice`)
 - Test: `test/unit/domain/device-service.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: `LivePort` device methods (Tasks 1-2), `PortError`.
 - Produces (used by Task 5):
   - `SetInspector.getDevice(id: DeviceId): DeviceDetail`
@@ -719,10 +725,12 @@ git commit -m "feat: DeviceService with fail-fast and per-tool undo labels"
 ### Task 4: MixerService — batch, all-or-nothing
 
 **Files:**
+
 - Create: `src/domain/mixer-service.ts`
 - Test: `test/unit/domain/mixer-service.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: `LivePort.setMixer`, `getTrack`, `getSet` (for return-track validation), `PortError`.
 - Produces (used by Task 5):
   - `interface MixerUpdate { trackId: TrackId; volume?: number; pan?: number; sends?: SendLevel[] }`
@@ -769,9 +777,9 @@ describe("MixerService", () => {
   });
 
   it("validates ranges and return IDs before mutating", async () => {
-    await expect(mixer.setMixer([{ trackId: "t1", volume: 1.5 }])).rejects.toMatchObject(
-      { code: "INVALID_INPUT" },
-    );
+    await expect(mixer.setMixer([{ trackId: "t1", volume: 1.5 }])).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
     await expect(mixer.setMixer([{ trackId: "t1", pan: -2 }])).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
@@ -869,12 +877,14 @@ git commit -m "feat: MixerService - batch mixer updates as one undo step"
 ### Task 5: MCP tools (devices, mixer) + dependency wiring
 
 **Files:**
+
 - Create: `src/mcp/tools/devices.ts`, `src/mcp/tools/mixer.ts`
 - Modify: `src/mcp/tools/types.ts` (ToolDeps gains `devices`, `mixer`), `src/mcp/tools/index.ts`
 - Modify (wiring `ToolDeps` construction): `test/unit/mcp/server.test.ts`, `test/component/helpers.ts`, `test/component/http-auth.test.ts`, `src/dev/fake-server.ts`
 - Test: extend `test/unit/mcp/server.test.ts`
 
 **Interfaces:**
+
 - Consumes: `DeviceService` (Task 3), `MixerService`/`MixerUpdate` (Task 4), `SetInspector.getDevice`, `runTool` envelope, `ToolDef` registry pattern.
 - Produces: 5 new tools — `get_device`, `insert_device`, `set_device_params`, `delete_device`, `set_mixer` — total 15. `set_device_params` returns `{deviceId, changed}` (echo of the applied values), NOT the full device (token economy).
 
@@ -905,42 +915,42 @@ In `test/unit/mcp/server.test.ts`: extend `buildDeps` with
 (with the two imports), extend the expected tool-name list with `"get_device"`, `"insert_device"`, `"set_device_params"`, `"delete_device"`, `"set_mixer"` (now 15 names), and add:
 
 ```ts
-  it("device round-trip: insert, tweak, read, mixer", async () => {
-    await call(client, "create_tracks", { tracks: [{ type: "midi", name: "Pad" }] });
-    const inserted = await call(client, "insert_device", {
-      trackId: "t1",
-      device: "Reverb",
-    });
-    expect(inserted.payload.ok).toBe(true);
-    const deviceId = inserted.payload.device.id;
-
-    const tweaked = await call(client, "set_device_params", {
-      deviceId,
-      params: { "Dry/Wet": 0.25 },
-    });
-    expect(tweaked.payload).toMatchObject({
-      ok: true,
-      deviceId,
-      changed: { "Dry/Wet": 0.25 },
-    });
-
-    const detail = await call(client, "get_device", { deviceId });
-    expect(
-      detail.payload.device.params.find((p: { name: string }) => p.name === "Dry/Wet")
-        .value,
-    ).toBe(0.25);
-
-    const mixed = await call(client, "set_mixer", {
-      updates: [{ trackId: "t1", volume: 0.5, sends: [{ returnId: "r1", value: 0.2 }] }],
-    });
-    expect(mixed.payload).toMatchObject({ ok: true, updated: ["t1"] });
-    expect(fake.undoSteps).toEqual([
-      "create_tracks",
-      "insert_device",
-      "set_device_params",
-      "set_mixer",
-    ]);
+it("device round-trip: insert, tweak, read, mixer", async () => {
+  await call(client, "create_tracks", { tracks: [{ type: "midi", name: "Pad" }] });
+  const inserted = await call(client, "insert_device", {
+    trackId: "t1",
+    device: "Reverb",
   });
+  expect(inserted.payload.ok).toBe(true);
+  const deviceId = inserted.payload.device.id;
+
+  const tweaked = await call(client, "set_device_params", {
+    deviceId,
+    params: { "Dry/Wet": 0.25 },
+  });
+  expect(tweaked.payload).toMatchObject({
+    ok: true,
+    deviceId,
+    changed: { "Dry/Wet": 0.25 },
+  });
+
+  const detail = await call(client, "get_device", { deviceId });
+  expect(
+    detail.payload.device.params.find((p: { name: string }) => p.name === "Dry/Wet")
+      .value,
+  ).toBe(0.25);
+
+  const mixed = await call(client, "set_mixer", {
+    updates: [{ trackId: "t1", volume: 0.5, sends: [{ returnId: "r1", value: 0.2 }] }],
+  });
+  expect(mixed.payload).toMatchObject({ ok: true, updated: ["t1"] });
+  expect(fake.undoSteps).toEqual([
+    "create_tracks",
+    "insert_device",
+    "set_device_params",
+    "set_mixer",
+  ]);
+});
 ```
 
 Run: `npx vitest run test/unit/mcp/server.test.ts` → FAIL (tool count, unknown tools).
@@ -965,7 +975,7 @@ export const deviceTools: ToolDef[] = [
   {
     name: "insert_device",
     description:
-      "Insert a built-in Live device by name (e.g. \"Reverb\", \"Auto Filter\") onto a " +
+      'Insert a built-in Live device by name (e.g. "Reverb", "Auto Filter") onto a ' +
       "track's device chain, in one undo step. Optional index positions it in the " +
       "chain (0 = first); omitted appends. Third-party plugins are not supported by " +
       "the Ableton API. Returns the new device with its parameters.",
@@ -1089,10 +1099,12 @@ git commit -m "feat: device and mixer MCP tools (15 tools total)"
 ### Task 6: Component scenario — sound-design flow + budget guard
 
 **Files:**
+
 - Create: `test/component/sound-design.test.ts`
 - Modify: `test/component/token-budget.test.ts` (returnTracks/devices now in payloads — re-assert budgets still hold; add a `get_device` budget)
 
 **Interfaces:**
+
 - Consumes: `startTestStack`/`callTool` helpers (updated in Task 5), all 15 tools.
 - Produces: the acceptance-level proof that a model can do sound-design work: discover → insert → tweak → mix, with exact undo trail and structured recovery from a stale device ID.
 
@@ -1140,7 +1152,12 @@ describe("scenario: sound design on an existing set", () => {
 
     await callTool(client, "set_mixer", {
       updates: [
-        { trackId: "t1", volume: 0.7, pan: -0.15, sends: [{ returnId: "r2", value: 0.25 }] },
+        {
+          trackId: "t1",
+          volume: 0.7,
+          pan: -0.15,
+          sends: [{ returnId: "r2", value: 0.25 }],
+        },
         { trackId: "t2", volume: 0.9 },
       ],
     });
@@ -1201,15 +1218,15 @@ describe("scenario: sound design on an existing set", () => {
 The existing two budget tests must still pass unchanged (the fixture has no devices; `returnTracks` adds ~70 bytes to `get_set`; `devices: []` + `mixer` adds ~150 bytes to `get_track`). Add one test to the describe block:
 
 ```ts
-  it("get_device stays under 1.5 KB", async () => {
-    await stack.fake.insertDevice("t1", "Reverb");
-    const inserted = stack.fake.getTrack("t1").devices[0];
-    const { bytes, payload } = await callTool(stack.client, "get_device", {
-      deviceId: inserted.id,
-    });
-    expect(payload.device.params.length).toBeGreaterThan(2);
-    expect(bytes).toBeLessThan(1536);
+it("get_device stays under 1.5 KB", async () => {
+  await stack.fake.insertDevice("t1", "Reverb");
+  const inserted = stack.fake.getTrack("t1").devices[0];
+  const { bytes, payload } = await callTool(stack.client, "get_device", {
+    deviceId: inserted.id,
   });
+  expect(payload.device.params.length).toBeGreaterThan(2);
+  expect(bytes).toBeLessThan(1536);
+});
 ```
 
 - [ ] **Step 3: Run all checks**
@@ -1230,9 +1247,11 @@ git commit -m "test: sound-design component scenario and device token budget"
 ### Task 7: Docs + dev:fake demo device
 
 **Files:**
+
 - Modify: `docs/capability-map.md` (statuses), `src/dev/fake-server.ts` (demo device + mixer), `README.md` (tool count)
 
 **Interfaces:**
+
 - Consumes: everything shipped in Tasks 1-6.
 - Produces: docs that match reality (docs policy: port/adapter changes require a capability-map update).
 
@@ -1245,9 +1264,9 @@ In the "MCP exposure status" table set Status to `v1 (implemented)` for the `Dev
 After the existing demo clip creation, add:
 
 ```ts
-  await fake.insertDevice("t1", "Reverb");
-  await fake.setDeviceParams("d1", { "Dry/Wet": 0.25 });
-  await fake.setMixer("t2", { volume: 0.75, sends: [{ returnId: "r2", value: 0.2 }] });
+await fake.insertDevice("t1", "Reverb");
+await fake.setDeviceParams("d1", { "Dry/Wet": 0.25 });
+await fake.setMixer("t2", { volume: 0.75, sends: [{ returnId: "r2", value: 0.2 }] });
 ```
 
 - [ ] **Step 3: Update README.md**
