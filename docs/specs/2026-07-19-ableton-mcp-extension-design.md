@@ -16,16 +16,16 @@ operating directly on their session.
 
 ## 2. Quality attributes (priority order)
 
-| Priority | Attribute | What it means here |
-|---|---|---|
-| P0 | **Maintainability / upgradability** | Ableton will ship new SDK/API versions; adapting must be localized, cheap, and safe. |
-| P0 | **Testability** | A component-test harness validates full server behavior in CI before any `.ablx` is packaged. |
-| P0 | **Token economy** | Tool outputs are compact, summary-by-default with drill-down; a large set must not blow up the AI client's context. |
-| P0 | **Data safety** | The producer's set is sacred: every write is one clean undo step; no partial writes; no filesystem access outside SDK-sanctioned flows. |
-| P1 | **Robustness** | Invalid/stale AI input never crashes anything and always yields a structured, self-correcting error. |
-| P2 | **Concurrency/staleness** | Producer and AI edit concurrently; stale references fail loudly before mutating. |
-| P2 | **Local security** | The localhost HTTP server is not an open door: loopback-only, origin checks, bearer token. |
-| P2 | **Observability** | Every tool call is audit-logged; "what did the AI just do?" is answerable inside Live. |
+| Priority | Attribute                           | What it means here                                                                                                                      |
+| -------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| P0       | **Maintainability / upgradability** | Ableton will ship new SDK/API versions; adapting must be localized, cheap, and safe.                                                    |
+| P0       | **Testability**                     | A component-test harness validates full server behavior in CI before any `.ablx` is packaged.                                           |
+| P0       | **Token economy**                   | Tool outputs are compact, summary-by-default with drill-down; a large set must not blow up the AI client's context.                     |
+| P0       | **Data safety**                     | The producer's set is sacred: every write is one clean undo step; no partial writes; no filesystem access outside SDK-sanctioned flows. |
+| P1       | **Robustness**                      | Invalid/stale AI input never crashes anything and always yields a structured, self-correcting error.                                    |
+| P2       | **Concurrency/staleness**           | Producer and AI edit concurrently; stale references fail loudly before mutating.                                                        |
+| P2       | **Local security**                  | The localhost HTTP server is not an open door: loopback-only, origin checks, bearer token.                                              |
+| P2       | **Observability**                   | Every tool call is audit-logged; "what did the AI just do?" is answerable inside Live.                                                  |
 
 Guidelines (not pillars): performance (chunk large reads), portability (macOS +
 Windows), releasability (reproducible CI pipeline).
@@ -133,12 +133,12 @@ reference lives in `docs/tools.md`; capability reasoning in `docs/capability-map
 
 **Reads — summary-by-default, drill-down on demand:**
 
-| Tool | Returns |
-|---|---|
-| `get_set` | Compact overview: tempo/scale + one line per track (id, name, type, device names, clip count) + scenes. Budget: 50-track set ≲ 2k tokens. |
-| `get_track` | One track in depth: clip slots, arrangement clips, device chain with key params. |
-| `get_clip` | Full clip detail; MIDI notes in compact tuple format `[pitch, startBeat, durBeats, velocity]`, optional fields only when non-default (`docs/decisions/0004-compact-note-format.md`). |
-| `get_device` | Full parameter list (name, value, min, max, quantized items). |
+| Tool         | Returns                                                                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `get_set`    | Compact overview: tempo/scale + one line per track (id, name, type, device names, clip count) + scenes. Budget: 50-track set ≲ 2k tokens.                                            |
+| `get_track`  | One track in depth: clip slots, arrangement clips, device chain with key params.                                                                                                     |
+| `get_clip`   | Full clip detail; MIDI notes in compact tuple format `[pitch, startBeat, durBeats, velocity]`, optional fields only when non-default (`docs/decisions/0004-compact-note-format.md`). |
+| `get_device` | Full parameter list (name, value, min, max, quantized items).                                                                                                                        |
 
 **Writes — batch-first, intent-shaped:**
 
@@ -179,13 +179,13 @@ AI client → HTTP POST (127.0.0.1) → MCP transport → zod validation
 
 Every failure maps to a code with a recovery hint for the model:
 
-| Code | Meaning | Hint pattern |
-|---|---|---|
-| `NOT_FOUND` | Stale/unknown ID | "Entity may have been deleted; call get_set to refresh IDs." |
-| `INVALID_INPUT` | Schema violation | zod issue details. |
-| `UNSUPPORTED` | Capability absent in this API version | Names the capability and host version. |
-| `CONFLICT` | State changed mid-operation | "Re-read and retry." |
-| `INTERNAL` | Bug | Correlation ID; details in audit log, safe message out. |
+| Code            | Meaning                               | Hint pattern                                                 |
+| --------------- | ------------------------------------- | ------------------------------------------------------------ |
+| `NOT_FOUND`     | Stale/unknown ID                      | "Entity may have been deleted; call get_set to refresh IDs." |
+| `INVALID_INPUT` | Schema violation                      | zod issue details.                                           |
+| `UNSUPPORTED`   | Capability absent in this API version | Names the capability and host version.                       |
+| `CONFLICT`      | State changed mid-operation           | "Re-read and retry."                                         |
+| `INTERNAL`      | Bug                                   | Correlation ID; details in audit log, safe message out.      |
 
 A top-level boundary converts unexpected throws into `INTERNAL`; the server never
 stops serving because one handler failed.

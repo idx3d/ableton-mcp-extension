@@ -1,9 +1,5 @@
 export type PortErrorCode =
-  | "NOT_FOUND"
-  | "INVALID_INPUT"
-  | "UNSUPPORTED"
-  | "CONFLICT"
-  | "INTERNAL";
+  "NOT_FOUND" | "INVALID_INPUT" | "UNSUPPORTED" | "CONFLICT" | "INTERNAL";
 
 /** The only error type that crosses the port boundary. */
 export class PortError extends Error {

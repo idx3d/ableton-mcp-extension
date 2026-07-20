@@ -18,8 +18,7 @@ export interface NoteExtras {
 
 /** [pitch 0-127, startBeat >= 0, durationBeats > 0, velocity 1-127, extras?] */
 export type Note =
-  | [number, number, number, number]
-  | [number, number, number, number, NoteExtras];
+  [number, number, number, number] | [number, number, number, number, NoteExtras];
 
 export interface TrackSpec {
   type: TrackType;

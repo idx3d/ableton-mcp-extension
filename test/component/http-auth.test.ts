@@ -53,7 +53,10 @@ describe("HTTP transport", () => {
   it("rejects a missing token with 401", async () => {
     const res = await fetch(server.url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
     });
     expect(res.status).toBe(401);

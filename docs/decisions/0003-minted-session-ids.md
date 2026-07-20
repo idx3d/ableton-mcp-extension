@@ -15,7 +15,7 @@ The adapter mints short, session-stable string IDs (`t1`, `t1.s2`, `c14`) and
 privately maps them to SDK handles. IDs are what cross the port boundary and reach
 the AI client. They are compact (token economy), stable within a session, and fail
 loudly: resolving an ID whose entity was deleted returns `NOT_FOUND` with a
-"re-read the set" hint *before* any mutation runs.
+"re-read the set" hint _before_ any mutation runs.
 
 IDs are meaningless across sessions — acceptable because each AI conversation
 re-reads the set (`get_set`) before working.

@@ -189,8 +189,8 @@ export class FakeLive implements LivePort {
   // -- internals ------------------------------------------------------------
 
   private cloneNotes(notes: Note[]): Note[] {
-    return notes.map((n) =>
-      (n.length === 5 ? [n[0], n[1], n[2], n[3], { ...n[4] }] : [...n]) as Note,
+    return notes.map(
+      (n) => (n.length === 5 ? [n[0], n[1], n[2], n[3], { ...n[4] }] : [...n]) as Note,
     );
   }
 

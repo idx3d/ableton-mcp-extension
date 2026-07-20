@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest a capability or improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Please check [docs/capability-map.md](../../blob/main/docs/capability-map.md)
+        first — it lists what the Ableton Extensions SDK can and cannot do. Features
+        marked "not possible" there are blocked by Ableton's API, not by this project.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do as a producer?
+      description: Describe the workflow, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution (optional)

@@ -28,10 +28,12 @@
 ### Task 1: Project scaffold
 
 **Files:**
+
 - Create: `package.json`, `tsconfig.json`, `vitest.config.ts`
 - Test: `test/unit/scaffold.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `npm test` (vitest run), `npm run typecheck` (tsc --noEmit) for all later tasks.
 
@@ -56,10 +58,12 @@
 - [ ] **Step 2: Install dependencies**
 
 Run:
+
 ```bash
 npm install zod@^3.24.0 @modelcontextprotocol/sdk@^1.12.0
 npm install -D typescript@^5.9.0 vitest@^3.2.0 tsx@^4.19.0 @types/node@^24.0.0
 ```
+
 Expected: both commands exit 0; `package-lock.json` created. If `@modelcontextprotocol/sdk@^1.12.0` does not resolve, install latest 1.x (`npm install @modelcontextprotocol/sdk@latest`) and note the version in the commit message.
 
 - [ ] **Step 3: Write tsconfig.json**
@@ -96,6 +100,7 @@ export default defineConfig({
 - [ ] **Step 5: Write a sanity test**
 
 `test/unit/scaffold.test.ts`:
+
 ```ts
 import { describe, expect, it } from "vitest";
 
@@ -125,10 +130,12 @@ git commit -m "chore: scaffold TypeScript + vitest project"
 ### Task 2: Port layer — DTO types, errors, LivePort interface
 
 **Files:**
+
 - Create: `src/port/types.ts`, `src/port/errors.ts`, `src/port/live-port.ts`
 - Test: `test/unit/port/errors.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces (used by every later task):
   - All DTO types below, exactly as named.
@@ -138,6 +145,7 @@ git commit -m "chore: scaffold TypeScript + vitest project"
 - [ ] **Step 1: Write the failing test**
 
 `test/unit/port/errors.test.ts`:
+
 ```ts
 import { describe, expect, it } from "vitest";
 import { PortError } from "../../../src/port/errors.js";
@@ -169,11 +177,7 @@ Expected: FAIL — cannot find module `src/port/errors.js`.
 
 ```ts
 export type PortErrorCode =
-  | "NOT_FOUND"
-  | "INVALID_INPUT"
-  | "UNSUPPORTED"
-  | "CONFLICT"
-  | "INTERNAL";
+  "NOT_FOUND" | "INVALID_INPUT" | "UNSUPPORTED" | "CONFLICT" | "INTERNAL";
 
 /** The only error type that crosses the port boundary. */
 export class PortError extends Error {
@@ -219,8 +223,7 @@ export interface NoteExtras {
 
 /** [pitch 0-127, startBeat >= 0, durationBeats > 0, velocity 1-127, extras?] */
 export type Note =
-  | [number, number, number, number]
-  | [number, number, number, number, NoteExtras];
+  [number, number, number, number] | [number, number, number, number, NoteExtras];
 
 export interface TrackSpec {
   type: TrackType;
@@ -353,16 +356,19 @@ git commit -m "feat: port layer - DTOs, PortError, LivePort interface"
 ### Task 3: FakeLive — song, tracks, scenes
 
 **Files:**
+
 - Create: `src/adapters/fake/fake-live.ts`
 - Test: `test/unit/adapters/fake-live.test.ts`
 
 **Interfaces:**
+
 - Consumes: `LivePort`, DTO types, `PortError` (Task 2).
 - Produces: `class FakeLive implements LivePort` with `constructor()` (empty set: 0 tracks, 0 scenes, tempo 120, scaleName "Major", rootNote 0) and test-inspection field `readonly undoSteps: string[]` (labels of completed transactions, in order). Clip methods throw `UNSUPPORTED` until Task 4 replaces them.
 
 - [ ] **Step 1: Write the failing tests**
 
 `test/unit/adapters/fake-live.test.ts`:
+
 ```ts
 import { beforeEach, describe, expect, it } from "vitest";
 import { FakeLive } from "../../../src/adapters/fake/fake-live.js";
@@ -678,16 +684,19 @@ git commit -m "feat: FakeLive adapter - song, tracks, scenes"
 ### Task 4: FakeLive — MIDI clips and notes
 
 **Files:**
+
 - Modify: `src/adapters/fake/fake-live.ts` (replace the two `UNSUPPORTED` stubs)
 - Test: `test/unit/adapters/fake-live-clips.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 3's `FakeLive` internals (`mintClipId`, `requireTrack`, `requireScene`, `findClip`).
 - Produces: working `createMidiClip` / `replaceClipNotes` matching `LivePort`. Real-Live semantics mimicked: creating a clip in an occupied slot throws `CONFLICT`; creating on an audio track throws `INVALID_INPUT`; new clips default `looping: true`, name `""`.
 
 - [ ] **Step 1: Write the failing tests**
 
 `test/unit/adapters/fake-live-clips.test.ts`:
+
 ```ts
 import { beforeEach, describe, expect, it } from "vitest";
 import { FakeLive } from "../../../src/adapters/fake/fake-live.js";
@@ -832,10 +841,12 @@ git commit -m "feat: FakeLive MIDI clips and wholesale note replacement"
 ### Task 5: Domain services — validation and undo-step policy
 
 **Files:**
+
 - Create: `src/domain/set-inspector.ts`, `src/domain/track-service.ts`, `src/domain/clip-editor.ts`, `src/domain/song-service.ts`, `src/domain/notes.ts`
 - Test: `test/unit/domain/services.test.ts`
 
 **Interfaces:**
+
 - Consumes: `LivePort`, DTOs, `PortError`, `FakeLive` (as test double).
 - Produces (consumed by MCP tools in Task 7):
   - `class SetInspector { constructor(live: LivePort); getSet(): SetSnapshot; getTrack(id: TrackId): TrackDetail; getClip(id: ClipId): ClipDetail }`
@@ -847,6 +858,7 @@ git commit -m "feat: FakeLive MIDI clips and wholesale note replacement"
 - [ ] **Step 1: Write the failing tests**
 
 `test/unit/domain/services.test.ts`:
+
 ```ts
 import { beforeEach, describe, expect, it } from "vitest";
 import { FakeLive } from "../../../src/adapters/fake/fake-live.js";
@@ -984,16 +996,32 @@ export function validateNotes(notes: Note[]): void {
   notes.forEach((note, i) => {
     const [pitch, start, duration, velocity] = note;
     if (!Number.isInteger(pitch) || pitch < 0 || pitch > 127) {
-      throw new PortError("INVALID_INPUT", `note ${i}: pitch ${pitch} out of range`, HINT);
+      throw new PortError(
+        "INVALID_INPUT",
+        `note ${i}: pitch ${pitch} out of range`,
+        HINT,
+      );
     }
     if (!(start >= 0)) {
-      throw new PortError("INVALID_INPUT", `note ${i}: start ${start} must be >= 0`, HINT);
+      throw new PortError(
+        "INVALID_INPUT",
+        `note ${i}: start ${start} must be >= 0`,
+        HINT,
+      );
     }
     if (!(duration > 0)) {
-      throw new PortError("INVALID_INPUT", `note ${i}: duration ${duration} must be > 0`, HINT);
+      throw new PortError(
+        "INVALID_INPUT",
+        `note ${i}: duration ${duration} must be > 0`,
+        HINT,
+      );
     }
     if (!Number.isInteger(velocity) || velocity < 1 || velocity > 127) {
-      throw new PortError("INVALID_INPUT", `note ${i}: velocity ${velocity} out of range`, HINT);
+      throw new PortError(
+        "INVALID_INPUT",
+        `note ${i}: velocity ${velocity} out of range`,
+        HINT,
+      );
     }
   });
 }
@@ -1003,7 +1031,13 @@ export function validateNotes(notes: Note[]): void {
 
 ```ts
 import type { LivePort } from "../port/live-port.js";
-import type { ClipDetail, ClipId, SetSnapshot, TrackDetail, TrackId } from "../port/types.js";
+import type {
+  ClipDetail,
+  ClipId,
+  SetSnapshot,
+  TrackDetail,
+  TrackId,
+} from "../port/types.js";
 
 export class SetInspector {
   constructor(private readonly live: LivePort) {}
@@ -1091,7 +1125,10 @@ export class ClipEditor {
 
   async createMidiClip(input: CreateMidiClipInput): Promise<ClipDetail> {
     if (!(input.lengthBeats > 0)) {
-      throw new PortError("INVALID_INPUT", `lengthBeats ${input.lengthBeats} must be > 0`);
+      throw new PortError(
+        "INVALID_INPUT",
+        `lengthBeats ${input.lengthBeats} must be > 0`,
+      );
     }
     validateNotes(input.notes);
     return this.live.transact("create_midi_clip", () =>
@@ -1152,10 +1189,12 @@ git commit -m "feat: domain services - validation and one-undo-step-per-write po
 ### Task 6: Tool result envelope
 
 **Files:**
+
 - Create: `src/mcp/envelope.ts`
 - Test: `test/unit/mcp/envelope.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PortError`, `PortErrorCode`.
 - Produces (used by Task 7):
   - `type ToolResult = ({ ok: true } & Record<string, unknown>) | { ok: false; code: PortErrorCode; message: string; hint?: string }`
@@ -1164,6 +1203,7 @@ git commit -m "feat: domain services - validation and one-undo-step-per-write po
 - [ ] **Step 1: Write the failing tests**
 
 `test/unit/mcp/envelope.test.ts`:
+
 ```ts
 import { describe, expect, it } from "vitest";
 import { PortError } from "../../../src/port/errors.js";
@@ -1223,9 +1263,7 @@ export type ToolResult =
  * structured, self-correcting failures; anything else becomes INTERNAL with
  * a generic message (details belong in the audit log, Plan 3).
  */
-export async function runTool(
-  fn: () => Promise<unknown> | unknown,
-): Promise<ToolResult> {
+export async function runTool(fn: () => Promise<unknown> | unknown): Promise<ToolResult> {
   try {
     const value = await fn();
     return { ok: true, ...(value as Record<string, unknown>) };
@@ -1266,10 +1304,12 @@ git commit -m "feat: tool result envelope - structured errors, no throws to clie
 ### Task 7: Tool registry and MCP server factory
 
 **Files:**
+
 - Create: `src/mcp/tools/types.ts`, `src/mcp/tools/schemas.ts`, `src/mcp/tools/set.ts`, `src/mcp/tools/tracks.ts`, `src/mcp/tools/clips.ts`, `src/mcp/tools/index.ts`, `src/mcp/server.ts`
 - Test: `test/unit/mcp/server.test.ts`
 
 **Interfaces:**
+
 - Consumes: domain services (Task 5), `runTool`/`ToolResult` (Task 6).
 - Produces:
   - `interface ToolDeps { inspector: SetInspector; tracks: TrackService; clips: ClipEditor; song: SongService }`
@@ -1280,6 +1320,7 @@ git commit -m "feat: tool result envelope - structured errors, no throws to clie
 - [ ] **Step 1: Write the failing tests**
 
 `test/unit/mcp/server.test.ts` (uses the MCP SDK's in-memory transport — no HTTP yet):
+
 ```ts
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -1364,7 +1405,11 @@ describe("MCP server over in-memory transport", () => {
     });
     expect(payload.ok).toBe(true);
     expect(payload.clip.id).toBe("c1");
-    expect(fake.undoSteps).toEqual(["create_tracks", "create_scenes", "create_midi_clip"]);
+    expect(fake.undoSteps).toEqual([
+      "create_tracks",
+      "create_scenes",
+      "create_midi_clip",
+    ]);
   });
 
   it("stale ID surfaces as structured NOT_FOUND with isError", async () => {
@@ -1537,7 +1582,8 @@ export const trackTools: ToolDef[] = [
   },
   {
     name: "create_scenes",
-    description: "Append N scenes (1-64) to the set. Returns the created scenes with IDs.",
+    description:
+      "Append N scenes (1-64) to the set. Returns the created scenes with IDs.",
     inputSchema: { count: z.number().int().min(1).max(64) },
     handler: async (args, deps) => ({
       scenes: await deps.tracks.createScenes(args.count as number),
@@ -1659,10 +1705,12 @@ git commit -m "feat: MCP tool registry and server factory (10 v1 tools)"
 ### Task 8: Streamable HTTP transport with auth
 
 **Files:**
+
 - Create: `src/mcp/http.ts`
 - Test: `test/component/http-auth.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createMcpServer` (Task 7).
 - Produces (used by Tasks 9-10):
   - `interface HttpOptions { port: number; token: string; createServer(): McpServer }`
@@ -1672,6 +1720,7 @@ git commit -m "feat: MCP tool registry and server factory (10 v1 tools)"
 - [ ] **Step 1: Write the failing tests**
 
 `test/component/http-auth.test.ts`:
+
 ```ts
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -1728,7 +1777,10 @@ describe("HTTP transport", () => {
   it("rejects a missing token with 401", async () => {
     const res = await fetch(server.url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
     });
     expect(res.status).toBe(401);
@@ -1780,7 +1832,11 @@ Expected: FAIL — cannot find module `src/mcp/http.js`.
 - [ ] **Step 3: Write src/mcp/http.ts**
 
 ```ts
-import { createServer as createNodeServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer as createNodeServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
@@ -1802,16 +1858,18 @@ const LOCAL_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
 function isLocal(value: string): boolean {
   try {
     const url = value.includes("://") ? new URL(value) : new URL(`http://${value}`);
-    return LOCAL_HOSTS.includes(url.hostname) || LOCAL_HOSTS.includes(`[${url.hostname}]`);
+    return (
+      LOCAL_HOSTS.includes(url.hostname) || LOCAL_HOSTS.includes(`[${url.hostname}]`)
+    );
   } catch {
     return false;
   }
 }
 
 function deny(res: ServerResponse, status: number, message: string): void {
-  res.writeHead(status, { "Content-Type": "application/json" }).end(
-    JSON.stringify({ error: message }),
-  );
+  res
+    .writeHead(status, { "Content-Type": "application/json" })
+    .end(JSON.stringify({ error: message }));
 }
 
 /**
@@ -1819,38 +1877,40 @@ function deny(res: ServerResponse, status: number, message: string): void {
  * Security (P2, per spec §7): loopback bind, Host/Origin validation, bearer token.
  */
 export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpServer> {
-  const httpServer = createNodeServer(async (req: IncomingMessage, res: ServerResponse) => {
-    try {
-      const host = req.headers.host ?? "";
-      const origin = req.headers.origin;
-      if (!isLocal(host) || (origin !== undefined && !isLocal(origin))) {
-        return deny(res, 403, "Forbidden: localhost only");
-      }
-      if (req.headers.authorization !== `Bearer ${opts.token}`) {
-        return deny(res, 401, "Unauthorized: missing or invalid bearer token");
-      }
-      const url = new URL(req.url ?? "/", `http://${host}`);
-      if (url.pathname !== "/mcp") {
-        return deny(res, 404, "Not found");
-      }
+  const httpServer = createNodeServer(
+    async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const host = req.headers.host ?? "";
+        const origin = req.headers.origin;
+        if (!isLocal(host) || (origin !== undefined && !isLocal(origin))) {
+          return deny(res, 403, "Forbidden: localhost only");
+        }
+        if (req.headers.authorization !== `Bearer ${opts.token}`) {
+          return deny(res, 401, "Unauthorized: missing or invalid bearer token");
+        }
+        const url = new URL(req.url ?? "/", `http://${host}`);
+        if (url.pathname !== "/mcp") {
+          return deny(res, 404, "Not found");
+        }
 
-      // Stateless mode: fresh server + transport per request avoids session state.
-      const mcpServer = opts.createServer();
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-        enableJsonResponse: true,
-      });
-      res.on("close", () => {
-        void transport.close();
-        void mcpServer.close();
-      });
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res);
-    } catch (error) {
-      console.error("[ableton-mcp] http error:", error);
-      if (!res.headersSent) deny(res, 500, "Internal server error");
-    }
-  });
+        // Stateless mode: fresh server + transport per request avoids session state.
+        const mcpServer = opts.createServer();
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+          enableJsonResponse: true,
+        });
+        res.on("close", () => {
+          void transport.close();
+          void mcpServer.close();
+        });
+        await mcpServer.connect(transport);
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error("[ableton-mcp] http error:", error);
+        if (!res.headersSent) deny(res, 500, "Internal server error");
+      }
+    },
+  );
 
   await new Promise<void>((resolve) => {
     httpServer.listen(opts.port, "127.0.0.1", resolve);
@@ -1888,9 +1948,11 @@ git commit -m "feat: Streamable HTTP transport - loopback only, origin check, be
 ### Task 9: Component scenarios — build-a-beat, token budget, undo trail
 
 **Files:**
+
 - Create: `test/component/helpers.ts`, `test/component/build-a-beat.test.ts`, `test/component/token-budget.test.ts`
 
 **Interfaces:**
+
 - Consumes: everything (Tasks 3-8). This is the CI gate from spec §8.2.
 - Produces: `test/component/helpers.ts` with `startTestStack()` and `callTool()` — reused by all future component tests (Plans 2-3).
 
@@ -1963,6 +2025,7 @@ export async function callTool(
 - [ ] **Step 2: Write the build-a-beat scenario test**
 
 `test/component/build-a-beat.test.ts` (acceptance scenario 1, minus devices — devices arrive in Plan 2):
+
 ```ts
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Note } from "../../src/port/types.js";
@@ -2071,6 +2134,7 @@ describe("scenario: AI builds a beat from an empty set", () => {
 - [ ] **Step 3: Write the token-budget test**
 
 `test/component/token-budget.test.ts` (spec §8.2 budget: 50-track fixture, `get_set` < 8192 bytes):
+
 ```ts
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FakeLive } from "../../src/adapters/fake/fake-live.js";
@@ -2142,10 +2206,12 @@ git commit -m "test: component scenarios - build-a-beat, stale-ID recovery, toke
 ### Task 10: dev:fake loop and docs update
 
 **Files:**
+
 - Create: `src/dev/fake-server.ts`
 - Modify: `README.md` (Status section), `docs/capability-map.md` (MCP exposure table)
 
 **Interfaces:**
+
 - Consumes: `startTestStack`-style wiring (but with a fixed port and generated token).
 - Produces: `npm run dev:fake` — a running MCP endpoint a real Claude client can use, no Ableton needed.
 
@@ -2170,12 +2236,18 @@ async function main(): Promise<void> {
     { type: "midi", name: "Bass" },
     { type: "audio", name: "Vocals" },
   ]);
-  await fake.createMidiClip("t1", "s1", 4, [
-    [36, 0, 0.5, 100],
-    [38, 1, 0.5, 100],
-    [36, 2, 0.5, 100],
-    [38, 3, 0.5, 100],
-  ], "Demo Beat");
+  await fake.createMidiClip(
+    "t1",
+    "s1",
+    4,
+    [
+      [36, 0, 0.5, 100],
+      [38, 1, 0.5, 100],
+      [36, 2, 0.5, 100],
+      [38, 3, 0.5, 100],
+    ],
+    "Demo Beat",
+  );
 
   const token = process.env.ABLETON_MCP_TOKEN ?? randomUUID();
   const server = await startHttpServer({

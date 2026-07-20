@@ -1,5 +1,11 @@
 import type { LivePort } from "../port/live-port.js";
-import type { ClipDetail, ClipId, SetSnapshot, TrackDetail, TrackId } from "../port/types.js";
+import type {
+  ClipDetail,
+  ClipId,
+  SetSnapshot,
+  TrackDetail,
+  TrackId,
+} from "../port/types.js";
 
 export class SetInspector {
   constructor(private readonly live: LivePort) {}

@@ -16,12 +16,18 @@ async function main(): Promise<void> {
     { type: "midi", name: "Bass" },
     { type: "audio", name: "Vocals" },
   ]);
-  await fake.createMidiClip("t1", "s1", 4, [
-    [36, 0, 0.5, 100],
-    [38, 1, 0.5, 100],
-    [36, 2, 0.5, 100],
-    [38, 3, 0.5, 100],
-  ], "Demo Beat");
+  await fake.createMidiClip(
+    "t1",
+    "s1",
+    4,
+    [
+      [36, 0, 0.5, 100],
+      [38, 1, 0.5, 100],
+      [36, 2, 0.5, 100],
+      [38, 3, 0.5, 100],
+    ],
+    "Demo Beat",
+  );
 
   const token = process.env.ABLETON_MCP_TOKEN ?? randomUUID();
   const server = await startHttpServer({

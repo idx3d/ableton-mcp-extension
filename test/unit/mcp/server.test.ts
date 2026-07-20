@@ -81,7 +81,11 @@ describe("MCP server over in-memory transport", () => {
     });
     expect(payload.ok).toBe(true);
     expect(payload.clip.id).toBe("c1");
-    expect(fake.undoSteps).toEqual(["create_tracks", "create_scenes", "create_midi_clip"]);
+    expect(fake.undoSteps).toEqual([
+      "create_tracks",
+      "create_scenes",
+      "create_midi_clip",
+    ]);
   });
 
   it("stale ID surfaces as structured NOT_FOUND with isError", async () => {

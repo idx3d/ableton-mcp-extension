@@ -9,9 +9,7 @@ export type ToolResult =
  * structured, self-correcting failures; anything else becomes INTERNAL with
  * a generic message (details belong in the audit log, Plan 3).
  */
-export async function runTool(
-  fn: () => Promise<unknown> | unknown,
-): Promise<ToolResult> {
+export async function runTool(fn: () => Promise<unknown> | unknown): Promise<ToolResult> {
   try {
     const value = await fn();
     return { ...(value as Record<string, unknown>), ok: true };

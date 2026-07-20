@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: input
+    id: live-version
+    attributes:
+      label: Ableton Live version
+      placeholder: e.g. Live 13.0.5 (or "N/A — dev:fake")
+    validations:
+      required: true
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version / commit
+      placeholder: e.g. 0.1.0 or a git SHA
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: e.g. Claude Code 2.x, Claude Desktop, Codex
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: >
+        Tool-call errors from your MCP client, and/or an excerpt from Live's
+        ExtensionHost.txt (macOS: ~/Library/Preferences/Ableton/Live x.x.x/,
+        Windows: %AppData%\Ableton\Live x.x.x\Preferences\).
+      render: text
