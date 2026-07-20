@@ -177,6 +177,7 @@ export class ClipEditor {
       notes = [...clip.notes];
     }
     if (edit.add) notes.push(...edit.add);
+    validateNotes(notes); // guards direct callers from e.g. fractional transpose
 
     await this.live.transact("edit_clip_notes", () =>
       this.live.replaceClipNotes(clipId, notes),
