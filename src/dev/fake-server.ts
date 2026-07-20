@@ -30,6 +30,9 @@ async function main(): Promise<void> {
     ],
     "Demo Beat",
   );
+  await fake.insertDevice("t1", "Reverb");
+  await fake.setDeviceParams("d1", { "Dry/Wet": 0.25 });
+  await fake.setMixer("t2", { volume: 0.75, sends: [{ returnId: "r2", value: 0.2 }] });
 
   const token = process.env.ABLETON_MCP_TOKEN ?? randomUUID();
   const server = await startHttpServer({
