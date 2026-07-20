@@ -3,6 +3,8 @@ import type { LivePort } from "../../port/live-port.js";
 import type {
   ClipDetail,
   ClipId,
+  ClipKind,
+  ClipPatch,
   DeviceDetail,
   DeviceId,
   DeviceParam,
@@ -12,6 +14,7 @@ import type {
   ReturnTrackId,
   ReturnTrackSummary,
   SceneId,
+  ScenePatch,
   SceneSummary,
   SetSnapshot,
   SongPatch,
@@ -24,9 +27,13 @@ import type {
 
 interface FakeClip {
   id: ClipId;
+  kind: ClipKind;
   name: string;
   lengthBeats: number;
   looping: boolean;
+  color?: string;
+  /** audio clips only */
+  filePath?: string;
   notes: Note[];
 }
 
@@ -141,6 +148,7 @@ export class FakeLive implements LivePort {
       trackId: track.id,
       sceneId,
       notes: this.cloneNotes(clip.notes),
+      ...(clip.filePath !== undefined ? { filePath: clip.filePath } : {}),
     };
   }
 
@@ -232,6 +240,7 @@ export class FakeLive implements LivePort {
     }
     const clip: FakeClip = {
       id: this.mintClipId(),
+      kind: "midi",
       name: name ?? "",
       lengthBeats,
       looping: true,
@@ -244,6 +253,13 @@ export class FakeLive implements LivePort {
   async replaceClipNotes(id: ClipId, notes: Note[]): Promise<void> {
     const found = this.findClip(id);
     if (!found) throw PortError.notFound("clip", id);
+    if (found.clip.kind !== "midi") {
+      throw new PortError(
+        "INVALID_INPUT",
+        `clip ${id} is an audio clip`,
+        "Only MIDI clips have notes.",
+      );
+    }
     found.clip.notes = this.cloneNotes(notes);
   }
 
@@ -334,6 +350,69 @@ export class FakeLive implements LivePort {
     if (patch.tempo !== undefined) this.tempo = patch.tempo;
   }
 
+  async createAudioClip(
+    trackId: TrackId,
+    sceneId: SceneId,
+    filePath: string,
+    name?: string,
+  ): Promise<ClipDetail> {
+    const track = this.requireTrack(trackId);
+    this.requireScene(sceneId);
+    if (track.type !== "audio") {
+      throw new PortError(
+        "INVALID_INPUT",
+        `track ${trackId} is a MIDI track`,
+        "Audio clips can only be created on audio tracks.",
+      );
+    }
+    if (track.clips.has(sceneId)) {
+      throw new PortError(
+        "CONFLICT",
+        `slot ${trackId}/${sceneId} already has a clip`,
+        "Delete the existing clip first, or pick an empty slot (see get_track).",
+      );
+    }
+    const clip: FakeClip = {
+      id: this.mintClipId(),
+      kind: "audio",
+      name: name ?? "",
+      // FakeLive cannot inspect audio files; fixed placeholder length.
+      // Real length semantics are pinned by the Plan-3 contract tests.
+      lengthBeats: 4,
+      looping: true,
+      filePath,
+      notes: [],
+    };
+    track.clips.set(sceneId, clip);
+    return this.getClip(clip.id);
+  }
+
+  async updateClip(id: ClipId, patch: ClipPatch): Promise<void> {
+    const found = this.findClip(id);
+    if (!found) throw PortError.notFound("clip", id);
+    if (patch.name !== undefined) found.clip.name = patch.name;
+    if (patch.looping !== undefined) found.clip.looping = patch.looping;
+    if (patch.color !== undefined) found.clip.color = patch.color;
+  }
+
+  async deleteClips(ids: ClipId[]): Promise<void> {
+    for (const id of ids) {
+      if (!this.findClip(id)) throw PortError.notFound("clip", id);
+    }
+    for (const id of ids) {
+      const found = this.findClip(id);
+      if (found) found.track.clips.delete(found.sceneId);
+    }
+  }
+
+  async updateScene(_id: SceneId, _patch: ScenePatch): Promise<void> {
+    throw new PortError("UNSUPPORTED", "updateScene not implemented yet");
+  }
+
+  async deleteScenes(_ids: SceneId[]): Promise<void> {
+    throw new PortError("UNSUPPORTED", "deleteScenes not implemented yet");
+  }
+
   async transact<T>(undoLabel: string, fn: () => Promise<T>): Promise<T> {
     const result = await fn();
     this.undoSteps.push(undoLabel);
@@ -383,10 +462,12 @@ export class FakeLive implements LivePort {
   private summarizeClip(clip: FakeClip) {
     return {
       id: clip.id,
+      kind: clip.kind,
       name: clip.name,
       lengthBeats: clip.lengthBeats,
       looping: clip.looping,
       noteCount: clip.notes.length,
+      ...(clip.color !== undefined ? { color: clip.color } : {}),
     };
   }
 
