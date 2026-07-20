@@ -10,9 +10,10 @@ open and listens on `localhost` (Streamable HTTP, token-protected).
 
 ## Status
 
-**Foundation phase.** The MCP server core (15 tools) runs against an in-memory
-FakeLive — try it with `npm run dev:fake`. The real Ableton adapter and the
-installable extension are in progress (see `docs/plans/`).
+**Foundation phase.** The MCP server core (21 tools — see
+[docs/tools.md](docs/tools.md)) runs against an in-memory FakeLive — try it
+with `npm run dev:fake`. The real Ableton adapter and the installable
+extension are in progress (see `docs/plans/`).
 
 - Design spec: [`docs/specs/2026-07-19-ableton-mcp-extension-design.md`](docs/specs/2026-07-19-ableton-mcp-extension-design.md)
 - What the Live API can and cannot do: [`docs/capability-map.md`](docs/capability-map.md)

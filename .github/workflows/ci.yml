@@ -20,6 +20,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
+      - run: npm run gen:tools
+      - run: git diff --exit-code docs/tools.md
       - run: npm run typecheck
       - run: npm test
 

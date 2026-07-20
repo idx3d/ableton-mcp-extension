@@ -1,6 +1,8 @@
 import { PortError } from "../port/errors.js";
 import type { LivePort } from "../port/live-port.js";
 import type {
+  SceneId,
+  ScenePatch,
   SceneSummary,
   TrackId,
   TrackPatch,
@@ -39,5 +41,29 @@ export class TrackService {
       throw new PortError("INVALID_INPUT", `count ${count} must be an integer 1-64`);
     }
     return this.live.transact("create_scenes", () => this.live.createScenes(count));
+  }
+
+  private requireSceneId(id: SceneId): void {
+    if (!this.live.getSet().scenes.some((s) => s.id === id)) {
+      throw PortError.notFound("scene", id);
+    }
+  }
+
+  async updateScene(id: SceneId, patch: ScenePatch): Promise<SceneSummary> {
+    if (Object.keys(patch).length === 0) {
+      throw new PortError("INVALID_INPUT", "patch must not be empty");
+    }
+    this.requireSceneId(id);
+    await this.live.transact("update_scene", () => this.live.updateScene(id, patch));
+    const scene = this.live.getSet().scenes.find((s) => s.id === id);
+    return scene as SceneSummary;
+  }
+
+  async deleteScenes(ids: SceneId[]): Promise<void> {
+    if (ids.length === 0) {
+      throw new PortError("INVALID_INPUT", "ids must not be empty");
+    }
+    for (const id of ids) this.requireSceneId(id);
+    return this.live.transact("delete_scenes", () => this.live.deleteScenes(ids));
   }
 }

@@ -50,7 +50,7 @@ describe("HTTP transport", () => {
       }),
     );
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(15);
+    expect(tools.length).toBe(21);
     await client.close();
   });
 

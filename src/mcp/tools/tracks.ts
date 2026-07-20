@@ -61,4 +61,25 @@ export const trackTools: ToolDef[] = [
       scenes: await deps.tracks.createScenes(args.count as number),
     }),
   },
+  {
+    name: "update_scene",
+    description: "Rename a scene, in one undo step.",
+    inputSchema: { sceneId: z.string(), name: z.string() },
+    handler: async (args, deps) => ({
+      scene: await deps.tracks.updateScene(args.sceneId as string, {
+        name: args.name as string,
+      }),
+    }),
+  },
+  {
+    name: "delete_scenes",
+    description:
+      "Delete scenes by ID in one undo step — this also deletes every session clip " +
+      "in those scenes. All IDs are validated first (all-or-nothing).",
+    inputSchema: { sceneIds: z.array(z.string()).min(1) },
+    handler: async (args, deps) => {
+      await deps.tracks.deleteScenes(args.sceneIds as string[]);
+      return { deleted: args.sceneIds };
+    },
+  },
 ];

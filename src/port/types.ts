@@ -109,12 +109,28 @@ export interface SetSnapshot {
   returnTracks: ReturnTrackSummary[];
 }
 
+export type ClipKind = "midi" | "audio";
+
+export interface ClipPatch {
+  name?: string;
+  looping?: boolean;
+  /** Hex "#RRGGBB" */
+  color?: string;
+}
+
+export interface ScenePatch {
+  name?: string;
+}
+
 export interface ClipSummary {
   id: ClipId;
+  kind: ClipKind;
   name: string;
   lengthBeats: number;
   looping: boolean;
   noteCount: number;
+  /** Hex "#RRGGBB"; absent until explicitly set. */
+  color?: string;
 }
 
 export interface ClipSlot {
@@ -132,4 +148,6 @@ export interface ClipDetail extends ClipSummary {
   trackId: TrackId;
   sceneId: SceneId;
   notes: Note[];
+  /** Audio clips only. */
+  filePath?: string;
 }

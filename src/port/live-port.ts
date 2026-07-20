@@ -1,11 +1,13 @@
 import type {
   ClipDetail,
   ClipId,
+  ClipPatch,
   DeviceDetail,
   DeviceId,
   MixerPatch,
   Note,
   SceneId,
+  ScenePatch,
   SceneSummary,
   SetSnapshot,
   SongPatch,
@@ -32,6 +34,8 @@ export interface LivePort {
   updateTrack(id: TrackId, patch: TrackPatch): Promise<void>;
   deleteTracks(ids: TrackId[]): Promise<void>;
   createScenes(count: number): Promise<SceneSummary[]>;
+  updateScene(id: SceneId, patch: ScenePatch): Promise<void>;
+  deleteScenes(ids: SceneId[]): Promise<void>;
   createMidiClip(
     trackId: TrackId,
     sceneId: SceneId,
@@ -39,6 +43,14 @@ export interface LivePort {
     notes: Note[],
     name?: string,
   ): Promise<ClipDetail>;
+  createAudioClip(
+    trackId: TrackId,
+    sceneId: SceneId,
+    filePath: string,
+    name?: string,
+  ): Promise<ClipDetail>;
+  updateClip(id: ClipId, patch: ClipPatch): Promise<void>;
+  deleteClips(ids: ClipId[]): Promise<void>;
   replaceClipNotes(id: ClipId, notes: Note[]): Promise<void>;
   insertDevice(
     trackId: TrackId,

@@ -13,7 +13,8 @@
     "dev:fake": "tsx src/dev/fake-server.ts",
     "lint": "eslint . && node scripts/check-boundaries.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "gen:tools": "tsx scripts/gen-tools-md.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
