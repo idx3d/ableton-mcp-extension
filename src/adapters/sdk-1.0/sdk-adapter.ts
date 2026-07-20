@@ -1,0 +1,451 @@
+/**
+ * LivePort adapter over @ableton-extensions/sdk 1.0 — the ONLY file in the
+ * codebase that imports the SDK (enforced by scripts/check-boundaries.mjs).
+ * Excluded from the CI typecheck (tsconfig.json); typechecked locally via
+ * `npm run typecheck:sdk` after `npm run setup:sdk`.
+ *
+ * Behavioral reference: src/adapters/fake/fake-live.ts — error codes,
+ * messages, and hints must match it exactly (pinned by the Plan-3 contract
+ * self-tests). Signatures follow docs/sdk-notes.md (verified against the
+ * vendored 1.0.0-beta.0 declarations).
+ *
+ * ID strategy (ADR 0003): session-stable IDs are minted on sight during reads
+ * by walking context.application.song. Resolution re-walks the current graph;
+ * a registered object that is no longer reachable is forgotten and reported
+ * as NOT_FOUND. The SDK caches objects by handle ID (same Live object → same
+ * SDK instance), so referential equality is a valid liveness check.
+ */
+import {
+  AudioClip,
+  AudioTrack,
+  MidiClip,
+  MidiTrack,
+  type Clip,
+  type ClipSlot,
+  type Device,
+  type ExtensionContext,
+  type Scene,
+  type Song,
+  type Track,
+} from "@ableton-extensions/sdk";
+
+import { PortError } from "../../port/errors.js";
+import type { LivePort } from "../../port/live-port.js";
+import type {
+  ClipDetail,
+  ClipId,
+  ClipKind,
+  ClipPatch,
+  ClipSummary,
+  DeviceDetail,
+  DeviceId,
+  MixerPatch,
+  MixerState,
+  Note,
+  SceneId,
+  ScenePatch,
+  SceneSummary,
+  SendLevel,
+  SetSnapshot,
+  SongPatch,
+  TrackDetail,
+  TrackId,
+  TrackPatch,
+  TrackSpec,
+  TrackSummary,
+} from "../../port/types.js";
+import { colorFromHex, colorToHex, noteFromSdk, noteToSdk } from "./codec.js";
+import { IdRegistry } from "./id-registry.js";
+
+type V = "1.0.0";
+
+interface ResolvedClip {
+  track: Track<V>;
+  slot: ClipSlot<V>;
+  sceneIndex: number;
+  clip: Clip<V>;
+}
+
+export class SdkAdapter implements LivePort {
+  private readonly trackIds = new IdRegistry<Track<V>>("t");
+  private readonly sceneIds = new IdRegistry<Scene<V>>("s");
+  private readonly clipIds = new IdRegistry<Clip<V>>("c");
+  private readonly deviceIds = new IdRegistry<Device<V>>("d");
+  private readonly returnIds = new IdRegistry<Track<V>>("r");
+
+  constructor(private readonly context: ExtensionContext<V>) {}
+
+  // -- reads ----------------------------------------------------------------
+
+  async getSet(): Promise<SetSnapshot> {
+    const song = this.song;
+    return {
+      tempo: song.tempo,
+      scaleName: song.scaleName,
+      rootNote: song.rootNote,
+      tracks: song.tracks.map((t) => this.summarizeTrack(t)),
+      scenes: song.scenes.map((s) => this.summarizeScene(s)),
+      returnTracks: song.returnTracks.map((r) => ({
+        id: this.returnIds.idFor(r),
+        name: r.name,
+      })),
+    };
+  }
+
+  async getTrack(id: TrackId): Promise<TrackDetail> {
+    const track = this.resolveTrack(id);
+    const scenes = this.song.scenes;
+    const slots = track.clipSlots;
+    return {
+      ...this.summarizeTrack(track),
+      // clipSlots is an array parallel to song.scenes (docs/sdk-notes.md §5).
+      slots: scenes.map((scene, i) => {
+        const clip = slots[i]?.clip ?? null;
+        return {
+          sceneId: this.sceneIds.idFor(scene),
+          clip: clip ? this.summarizeClip(clip) : null,
+        };
+      }),
+      devices: track.devices.map((d) => ({
+        id: this.deviceIds.idFor(d),
+        name: d.name,
+      })),
+      mixer: await this.mixerState(track),
+    };
+  }
+
+  async getClip(id: ClipId): Promise<ClipDetail> {
+    const { track, sceneIndex, clip } = this.resolveClip(id);
+    const scene = this.song.scenes[sceneIndex];
+    const filePath = this.clipFilePath(clip);
+    return {
+      ...this.summarizeClip(clip),
+      trackId: this.trackIds.idFor(track),
+      sceneId: this.sceneIds.idFor(scene),
+      notes: clip instanceof MidiClip ? clip.notes.map(noteFromSdk) : [],
+      ...(filePath !== undefined ? { filePath } : {}),
+    };
+  }
+
+  async getDevice(_id: DeviceId): Promise<DeviceDetail> {
+    throw this.unsupported("getDevice");
+  }
+
+  // -- writes ---------------------------------------------------------------
+
+  async createTracks(specs: TrackSpec[]): Promise<TrackSummary[]> {
+    const created: TrackSummary[] = [];
+    for (const spec of specs) {
+      const track =
+        spec.type === "midi"
+          ? await this.song.createMidiTrack()
+          : await this.song.createAudioTrack();
+      // Unlike FakeLive, Live assigns its own default track name; we only
+      // override when the caller supplied one.
+      if (spec.name !== undefined) track.name = spec.name;
+      created.push(this.summarizeTrack(track));
+    }
+    return created;
+  }
+
+  async updateTrack(id: TrackId, patch: TrackPatch): Promise<void> {
+    const track = this.resolveTrack(id);
+    if (patch.name !== undefined) track.name = patch.name;
+    if (patch.muted !== undefined) track.mute = patch.muted;
+    if (patch.soloed !== undefined) track.solo = patch.soloed;
+    if (patch.armed !== undefined) track.arm = patch.armed;
+  }
+
+  async deleteTracks(ids: TrackId[]): Promise<void> {
+    // Resolve everything (NOT_FOUND) before the first mutation; dedupe so
+    // repeated IDs behave like FakeLive's filter-based delete.
+    const tracks = [...new Set(ids.map((id) => this.resolveTrack(id)))];
+    for (const track of tracks) {
+      await this.song.deleteTrack(track);
+      this.trackIds.forget(track);
+    }
+  }
+
+  async createScenes(count: number): Promise<SceneSummary[]> {
+    const created: SceneSummary[] = [];
+    for (let i = 0; i < count; i++) {
+      // -1 appends at the end (docs/sdk-notes.md §3), matching FakeLive.
+      const scene = await this.song.createScene(-1);
+      created.push(this.summarizeScene(scene));
+    }
+    return created;
+  }
+
+  async updateScene(id: SceneId, patch: ScenePatch): Promise<void> {
+    const { scene } = this.resolveScene(id);
+    if (patch.name !== undefined) scene.name = patch.name;
+  }
+
+  async deleteScenes(ids: SceneId[]): Promise<void> {
+    const scenes = [...new Set(ids.map((id) => this.resolveScene(id).scene))];
+    for (const scene of scenes) {
+      await this.song.deleteScene(scene);
+      this.sceneIds.forget(scene);
+    }
+  }
+
+  async createMidiClip(
+    trackId: TrackId,
+    sceneId: SceneId,
+    lengthBeats: number,
+    notes: Note[],
+    name?: string,
+  ): Promise<ClipDetail> {
+    const track = this.resolveTrack(trackId);
+    const { index: sceneIndex } = this.resolveScene(sceneId);
+    if (!(track instanceof MidiTrack)) {
+      throw new PortError(
+        "INVALID_INPUT",
+        `track ${trackId} is an audio track`,
+        "MIDI clips can only be created on MIDI tracks.",
+      );
+    }
+    const slot = this.slotAt(track, sceneIndex);
+    if (slot.clip !== null) {
+      throw new PortError(
+        "CONFLICT",
+        `slot ${trackId}/${sceneId} already has a clip`,
+        "Delete the existing clip first, or pick an empty slot (see get_track).",
+      );
+    }
+    const clip = await slot.createMidiClip(lengthBeats);
+    if (notes.length > 0) clip.notes = notes.map(noteToSdk);
+    if (name !== undefined) clip.name = name;
+    return await this.getClip(this.clipIds.idFor(clip));
+  }
+
+  async createAudioClip(
+    trackId: TrackId,
+    sceneId: SceneId,
+    filePath: string,
+    name?: string,
+  ): Promise<ClipDetail> {
+    const track = this.resolveTrack(trackId);
+    const { index: sceneIndex } = this.resolveScene(sceneId);
+    if (!(track instanceof AudioTrack)) {
+      throw new PortError(
+        "INVALID_INPUT",
+        `track ${trackId} is a MIDI track`,
+        "Audio clips can only be created on audio tracks.",
+      );
+    }
+    const slot = this.slotAt(track, sceneIndex);
+    if (slot.clip !== null) {
+      throw new PortError(
+        "CONFLICT",
+        `slot ${trackId}/${sceneId} already has a clip`,
+        "Delete the existing clip first, or pick an empty slot (see get_track).",
+      );
+    }
+    const clip = await slot.createAudioClip({ filePath });
+    if (name !== undefined) clip.name = name;
+    return await this.getClip(this.clipIds.idFor(clip));
+  }
+
+  async updateClip(id: ClipId, patch: ClipPatch): Promise<void> {
+    const { clip } = this.resolveClip(id);
+    if (patch.name !== undefined) clip.name = patch.name;
+    if (patch.looping !== undefined) clip.looping = patch.looping;
+    if (patch.color !== undefined) clip.color = colorFromHex(patch.color);
+  }
+
+  async deleteClips(ids: ClipId[]): Promise<void> {
+    // Resolve everything before the first mutation; dedupe by resolved clip
+    // so duplicate IDs succeed like they do in FakeLive.
+    const resolved = ids.map((id) => this.resolveClip(id));
+    const seen = new Set<Clip<V>>();
+    for (const { slot, clip } of resolved) {
+      if (seen.has(clip)) continue;
+      seen.add(clip);
+      await slot.deleteClip();
+      this.clipIds.forget(clip);
+    }
+  }
+
+  async replaceClipNotes(id: ClipId, notes: Note[]): Promise<void> {
+    const { clip } = this.resolveClip(id);
+    if (!(clip instanceof MidiClip)) {
+      throw new PortError(
+        "INVALID_INPUT",
+        `clip ${id} is an audio clip`,
+        "Only MIDI clips have notes.",
+      );
+    }
+    clip.notes = notes.map(noteToSdk);
+  }
+
+  async insertDevice(
+    _trackId: TrackId,
+    _deviceName: string,
+    _index?: number,
+  ): Promise<DeviceDetail> {
+    throw this.unsupported("insertDevice");
+  }
+
+  async setDeviceParams(_id: DeviceId, _params: Record<string, number>): Promise<void> {
+    throw this.unsupported("setDeviceParams");
+  }
+
+  async deleteDevice(_id: DeviceId): Promise<void> {
+    throw this.unsupported("deleteDevice");
+  }
+
+  async setMixer(_trackId: TrackId, _patch: MixerPatch): Promise<void> {
+    throw this.unsupported("setMixer");
+  }
+
+  async updateSong(patch: SongPatch): Promise<void> {
+    if (patch.tempo !== undefined) this.song.tempo = patch.tempo;
+  }
+
+  async transact<T>(_undoLabel: string, fn: () => Promise<T>): Promise<T> {
+    // The SDK has no undo-step naming, so the label is ignored here (the
+    // shell's audit log records it instead). withinTransaction requires a
+    // synchronous callback; it awaits the returned promise before closing
+    // the undo step (docs/sdk-notes.md §1/§9).
+    return this.context.withinTransaction(() => fn());
+  }
+
+  // -- resolution -----------------------------------------------------------
+
+  private get song(): Song<V> {
+    return this.context.application.song;
+  }
+
+  /** Re-walks the current graph; forgets and throws if the track is gone. */
+  private resolveTrack(id: TrackId): Track<V> {
+    const track = this.trackIds.resolve(id);
+    if (track) {
+      if (this.song.tracks.includes(track)) return track;
+      this.trackIds.forget(track);
+    }
+    throw PortError.notFound("track", id);
+  }
+
+  /** Resolves a scene plus its current index in song.scenes. */
+  private resolveScene(id: SceneId): { scene: Scene<V>; index: number } {
+    const scene = this.sceneIds.resolve(id);
+    if (scene) {
+      const index = this.song.scenes.indexOf(scene);
+      if (index !== -1) return { scene, index };
+      this.sceneIds.forget(scene);
+    }
+    throw PortError.notFound("scene", id);
+  }
+
+  /** Re-walks all session slots to locate the clip; forgets it if gone. */
+  private resolveClip(id: ClipId): ResolvedClip {
+    const clip = this.clipIds.resolve(id);
+    if (clip) {
+      for (const track of this.song.tracks) {
+        const slots = track.clipSlots;
+        for (let i = 0; i < slots.length; i++) {
+          if (slots[i].clip === clip) {
+            return { track, slot: slots[i], sceneIndex: i, clip };
+          }
+        }
+      }
+      this.clipIds.forget(clip);
+    }
+    throw PortError.notFound("clip", id);
+  }
+
+  private slotAt(track: Track<V>, sceneIndex: number): ClipSlot<V> {
+    const slot = track.clipSlots[sceneIndex];
+    if (!slot) {
+      // clipSlots should always be parallel to song.scenes; if not, that is
+      // an adapter/SDK invariant violation, not caller error.
+      throw new PortError(
+        "INTERNAL",
+        `track has no clip slot at scene index ${sceneIndex}`,
+      );
+    }
+    return slot;
+  }
+
+  // -- snapshots ------------------------------------------------------------
+
+  private summarizeTrack(track: Track<V>): TrackSummary {
+    return {
+      id: this.trackIds.idFor(track),
+      name: track.name,
+      type: this.trackType(track),
+      muted: track.mute,
+      soloed: track.solo,
+      armed: track.arm,
+      deviceNames: track.devices.map((d) => d.name),
+      // Session clips only, matching FakeLive's session-view model.
+      clipCount: track.clipSlots.filter((s) => s.clip !== null).length,
+    };
+  }
+
+  private summarizeScene(scene: Scene<V>): SceneSummary {
+    return { id: this.sceneIds.idFor(scene), name: scene.name };
+  }
+
+  private summarizeClip(clip: Clip<V>): ClipSummary {
+    // Mirror Live's session-clip "length": loop length while looping,
+    // otherwise the start/end-marker span. Pinned by the Plan-3 contract
+    // self-tests against real Live.
+    const lengthBeats = clip.looping
+      ? clip.loopEnd - clip.loopStart
+      : clip.endMarker - clip.startMarker;
+    return {
+      id: this.clipIds.idFor(clip),
+      kind: this.clipKind(clip),
+      name: clip.name,
+      lengthBeats,
+      looping: clip.looping,
+      noteCount: clip instanceof MidiClip ? clip.notes.length : 0,
+      // SDK clip color is always a plain number with no "unset" state, so
+      // color is always present here — a documented divergence from FakeLive,
+      // which omits it until explicitly set.
+      color: colorToHex(clip.color),
+    };
+  }
+
+  private trackType(track: Track<V>): "midi" | "audio" {
+    // Group tracks (neither MidiTrack nor AudioTrack) are reported as
+    // "audio", matching their audio-signal role in Live. Verify in-Live.
+    return track instanceof MidiTrack ? "midi" : "audio";
+  }
+
+  private clipKind(clip: Clip<V>): ClipKind {
+    return clip instanceof MidiClip ? "midi" : "audio";
+  }
+
+  private clipFilePath(clip: Clip<V>): string | undefined {
+    return clip instanceof AudioClip ? clip.filePath : undefined;
+  }
+
+  private async mixerState(track: Track<V>): Promise<MixerState> {
+    const mixer = track.mixer;
+    const returns = this.song.returnTracks;
+    // Mixer levels live inside DeviceParameter objects whose values are
+    // async-only (docs/sdk-notes.md §7/§8) — the one async read in the SDK.
+    const [volume, pan, ...sendValues] = await Promise.all([
+      mixer.volume.getValue(),
+      mixer.panning.getValue(),
+      ...mixer.sends.map((send) => send.getValue()),
+    ]);
+    // Assumes mixer.sends is parallel to song.returnTracks (verify in-Live —
+    // the SDK does not document the ordering).
+    const sends: SendLevel[] = [];
+    for (let i = 0; i < returns.length && i < sendValues.length; i++) {
+      sends.push({
+        returnId: this.returnIds.idFor(returns[i]),
+        value: sendValues[i],
+      });
+    }
+    return { volume, pan, sends };
+  }
+
+  private unsupported(method: string): PortError {
+    return new PortError("UNSUPPORTED", `${method} not implemented yet`);
+  }
+}
