@@ -2,11 +2,14 @@
 /**
  * Enforces the architecture rules from CLAUDE.md / the design spec:
  *
- *   1. Only src/adapters/sdk-* may import @ableton-extensions/sdk.
+ *   1. Only src/adapters/sdk-*, src/shell/, and src/extension.ts may import
+ *      @ableton-extensions/*.
  *   2. src/port/ imports nothing outside itself (no packages, no other layers).
  *   3. src/domain/ imports only src/port/ and itself.
  *   4. src/mcp/ never imports src/adapters/ (adapters are injected at the
  *      composition root: src/extension.ts, src/dev/, tests).
+ *   5. src/mcp/, src/domain/, src/port/, src/adapters/fake/ must not import
+ *      src/shell/ (the shell stays an outer ring).
  *
  * Exits non-zero listing every violation. Runs as part of `npm run lint`.
  */
@@ -49,8 +52,25 @@ for (const file of walk(SRC)) {
     const isRelative = spec.startsWith(".");
     const target = isRelative ? resolveRelative(file, spec) : null;
 
-    if (spec.startsWith("@ableton-extensions/") && !inSdkAdapter) {
-      violations.push(`${rel}: imports ${spec} (only src/adapters/sdk-* may)`);
+    if (
+      spec.startsWith("@ableton-extensions/") &&
+      !inSdkAdapter &&
+      layer !== "shell" &&
+      rel !== "extension.ts"
+    ) {
+      violations.push(
+        `${rel}: imports ${spec} (only src/adapters/sdk-*, src/shell/, src/extension.ts may)`,
+      );
+    }
+    if (
+      (layer === "mcp" ||
+        layer === "domain" ||
+        layer === "port" ||
+        rel.startsWith("adapters/fake/")) &&
+      isRelative &&
+      target.startsWith("shell/")
+    ) {
+      violations.push(`${rel}: must not import shell/ (keep the shell an outer ring)`);
     }
     if (layer === "port") {
       if (!isRelative || !target.startsWith("port/")) {

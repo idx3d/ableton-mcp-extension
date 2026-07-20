@@ -14,7 +14,9 @@
     "lint": "eslint . && node scripts/check-boundaries.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "gen:tools": "tsx scripts/gen-tools-md.ts"
+    "gen:tools": "tsx scripts/gen-tools-md.ts",
+    "setup:sdk": "npm install --no-save file:references/extensions-sdk-1.0.0-beta.0/ableton-extensions-sdk-1.0.0-beta.0.tgz file:references/extensions-sdk-1.0.0-beta.0/ableton-extensions-cli-1.0.0-beta.0.tgz",
+    "typecheck:sdk": "tsc --noEmit -p tsconfig.sdk.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

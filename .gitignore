@@ -3,3 +3,6 @@ references/
 node_modules/
 dist/
 *.log
+
+# Local-only Ableton SDK artifacts (beta terms: do not commit)
+docs/sdk-notes.md
