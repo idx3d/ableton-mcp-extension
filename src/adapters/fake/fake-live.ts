@@ -405,12 +405,17 @@ export class FakeLive implements LivePort {
     }
   }
 
-  async updateScene(_id: SceneId, _patch: ScenePatch): Promise<void> {
-    throw new PortError("UNSUPPORTED", "updateScene not implemented yet");
+  async updateScene(id: SceneId, patch: ScenePatch): Promise<void> {
+    const scene = this.requireScene(id);
+    if (patch.name !== undefined) scene.name = patch.name;
   }
 
-  async deleteScenes(_ids: SceneId[]): Promise<void> {
-    throw new PortError("UNSUPPORTED", "deleteScenes not implemented yet");
+  async deleteScenes(ids: SceneId[]): Promise<void> {
+    for (const id of ids) this.requireScene(id);
+    this.scenes = this.scenes.filter((s) => !ids.includes(s.id));
+    for (const track of this.tracks) {
+      for (const id of ids) track.clips.delete(id);
+    }
   }
 
   async transact<T>(undoLabel: string, fn: () => Promise<T>): Promise<T> {
