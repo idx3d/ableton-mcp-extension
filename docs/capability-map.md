@@ -40,12 +40,16 @@ playbook in the design spec).
 
 | Capability | MCP tool(s) | Status |
 |---|---|---|
-| Set overview / drill-down | `get_set`, `get_track`, `get_clip`, `get_device` | v1 |
-| Track/scene CRUD | `create_tracks`, `update_track`, `delete_tracks`, `create_scenes`, `update_scene`, `delete_scenes` | v1 |
-| Clip CRUD | `create_midi_clip`, `create_audio_clip`, `update_clip`, `delete_clips` | v1 |
-| Note editing | `replace_clip_notes`, `edit_clip_notes` | v1 |
-| Devices | `insert_device`, `set_device_params`, `delete_device` | v1 |
-| Mixer | `set_mixer` | v1 |
-| Song | `update_song` | v1 |
+| Set overview / drill-down | `get_set`, `get_track`, `get_clip` | v1 (implemented) |
+| Track CRUD | `create_tracks`, `update_track`, `delete_tracks` | v1 (implemented) |
+| Scene create | `create_scenes` | v1 (implemented) |
+| Scene update/delete | `update_scene`, `delete_scenes` | v1 (planned — Plan 2) |
+| Clip create MIDI | `create_midi_clip` | v1 (implemented) |
+| Clip create/update/delete audio | `create_audio_clip`, `update_clip`, `delete_clips` | v1 (planned — Plan 2) |
+| Note editing (replace) | `replace_clip_notes` | v1 (implemented) |
+| Note editing (edit) | `edit_clip_notes` | v1 (planned — Plan 2) |
+| Devices | `get_device`, `insert_device`, `set_device_params`, `delete_device` | v1 (planned — Plan 2) |
+| Mixer | `set_mixer` | v1 (planned — Plan 2) |
+| Song | `update_song` | v1 (implemented) |
 | Audio render / file import | `render_audio`, `import_file` | deferred |
 | Take lanes, Simpler sample, rack chains | — | deferred |
