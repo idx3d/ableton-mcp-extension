@@ -12,6 +12,51 @@ import { validateNotes } from "./notes.js";
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
+export interface NoteSelect {
+  pitchMin?: number;
+  pitchMax?: number;
+  /** inclusive */
+  startBeat?: number;
+  /** exclusive */
+  endBeat?: number;
+}
+
+export interface NoteTransform {
+  transpose?: number;
+  shiftBeats?: number;
+  velocityDelta?: number;
+}
+
+export interface ClipNotesEdit {
+  select?: NoteSelect;
+  remove?: boolean;
+  transform?: NoteTransform;
+  add?: Note[];
+}
+
+function matches(note: Note, sel: NoteSelect): boolean {
+  const [pitch, start] = note;
+  if (sel.pitchMin !== undefined && pitch < sel.pitchMin) return false;
+  if (sel.pitchMax !== undefined && pitch > sel.pitchMax) return false;
+  if (sel.startBeat !== undefined && start < sel.startBeat) return false;
+  if (sel.endBeat !== undefined && start >= sel.endBeat) return false;
+  return true;
+}
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+function applyTransform(note: Note, t: NoteTransform): Note {
+  const [pitch, start, duration, velocity] = note;
+  const extras = note.length === 5 ? { ...note[4] } : undefined;
+  const next: Note = [
+    clamp(pitch + (t.transpose ?? 0), 0, 127),
+    Math.max(0, start + (t.shiftBeats ?? 0)),
+    duration,
+    clamp(velocity + (t.velocityDelta ?? 0), 1, 127),
+  ];
+  return extras ? ([...next, extras] as Note) : next;
+}
+
 export interface CreateMidiClipInput {
   trackId: TrackId;
   sceneId: SceneId;
@@ -93,5 +138,49 @@ export class ClipEditor {
     }
     for (const id of ids) this.live.getClip(id); // all-or-nothing
     return this.live.transact("delete_clips", () => this.live.deleteClips(ids));
+  }
+
+  async editClipNotes(clipId: ClipId, edit: ClipNotesEdit): Promise<ClipDetail> {
+    const clip = this.live.getClip(clipId); // fail fast on stale ID
+    if (clip.kind !== "midi") {
+      throw new PortError(
+        "INVALID_INPUT",
+        `clip ${clipId} is an audio clip`,
+        "Only MIDI clips have notes.",
+      );
+    }
+    if (edit.remove && edit.transform) {
+      throw new PortError(
+        "INVALID_INPUT",
+        "remove and transform are mutually exclusive",
+        "Use one edit_clip_notes call per operation.",
+      );
+    }
+    const hasAdd = (edit.add?.length ?? 0) > 0;
+    if (!edit.remove && !edit.transform && !hasAdd) {
+      throw new PortError(
+        "INVALID_INPUT",
+        "nothing to do",
+        "Provide remove, transform, and/or add.",
+      );
+    }
+    if (edit.add) validateNotes(edit.add);
+
+    const sel = edit.select ?? {};
+    let notes: Note[];
+    if (edit.remove) {
+      notes = clip.notes.filter((n) => !matches(n, sel));
+    } else if (edit.transform) {
+      const t = edit.transform;
+      notes = clip.notes.map((n) => (matches(n, sel) ? applyTransform(n, t) : n));
+    } else {
+      notes = [...clip.notes];
+    }
+    if (edit.add) notes.push(...edit.add);
+
+    await this.live.transact("edit_clip_notes", () =>
+      this.live.replaceClipNotes(clipId, notes),
+    );
+    return this.live.getClip(clipId);
   }
 }
