@@ -25,10 +25,12 @@ Everything from Plans 1/2a remains binding (SDK quarantine via lint, port zero-d
 ### Task 1: Port extensions + FakeLive audio clips, clip update/delete
 
 **Files:**
+
 - Modify: `src/port/types.ts`, `src/port/live-port.ts`, `src/adapters/fake/fake-live.ts`
 - Test: `test/unit/adapters/fake-live-audio-clips.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: existing FakeLive internals (`requireTrack`, `requireScene`, `findClip`, `mintClipId`, `summarizeClip`, `cloneNotes`).
 - Produces (used by Tasks 2-5):
   - Types: `ClipKind = "midi" | "audio"`; `ClipPatch { name?; looping?; color? }`; `ScenePatch { name? }`; `ClipSummary` gains `kind: ClipKind` and `color?: string`; `ClipDetail` gains `filePath?: string`.
@@ -47,7 +49,10 @@ describe("FakeLive audio clips and clip update/delete", () => {
   let fake: FakeLive;
   beforeEach(async () => {
     fake = new FakeLive();
-    await fake.createTracks([{ type: "midi", name: "Keys" }, { type: "audio", name: "Vox" }]);
+    await fake.createTracks([
+      { type: "midi", name: "Keys" },
+      { type: "audio", name: "Vox" },
+    ]);
     await fake.createScenes(2);
   });
 
@@ -81,9 +86,9 @@ describe("FakeLive audio clips and clip update/delete", () => {
     const midi = await fake.createMidiClip("t1", "s1", 4, [[60, 0, 1, 100]]);
     expect(midi.kind).toBe("midi");
     const audio = await fake.createAudioClip("t2", "s1", "/x.wav");
-    await expect(fake.replaceClipNotes(audio.id, [[60, 0, 1, 100]])).rejects.toMatchObject(
-      { code: "INVALID_INPUT" },
-    );
+    await expect(
+      fake.replaceClipNotes(audio.id, [[60, 0, 1, 100]]),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
   it("updates clip name, looping, color", async () => {
@@ -294,13 +299,13 @@ New methods (writes section):
 In `replaceClipNotes`, after the not-found check, add:
 
 ```ts
-    if (found.clip.kind !== "midi") {
-      throw new PortError(
-        "INVALID_INPUT",
-        `clip ${id} is an audio clip`,
-        "Only MIDI clips have notes.",
-      );
-    }
+if (found.clip.kind !== "midi") {
+  throw new PortError(
+    "INVALID_INPUT",
+    `clip ${id} is an audio clip`,
+    "Only MIDI clips have notes.",
+  );
+}
 ```
 
 - [ ] **Step 6: Run all checks**
@@ -320,10 +325,12 @@ git commit -m "feat: audio clips, clip update/delete in port and FakeLive"
 ### Task 2: FakeLive scene update/delete
 
 **Files:**
+
 - Modify: `src/adapters/fake/fake-live.ts` (replace the two scene stubs)
 - Test: `test/unit/adapters/fake-live-scenes.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: Task 1's `ScenePatch`, FakeLive internals.
 - Produces: `updateScene` (rename), `deleteScenes` (batch, all-IDs-validated-first; deleting a scene also deletes every clip in that scene's slots — Live semantics).
 
@@ -402,10 +409,12 @@ git commit -m "feat: FakeLive scene rename and delete with clip cleanup"
 ### Task 3: ClipEditor — audio clips, update/delete, color validation
 
 **Files:**
+
 - Modify: `src/domain/clip-editor.ts`
 - Test: `test/unit/domain/clip-editor-crud.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: port methods from Task 1.
 - Produces (used by Task 6):
   - `ClipEditor.createAudioClip(input: { trackId; sceneId; filePath; name? }): Promise<ClipDetail>` — rejects empty `filePath`; undo label `create_audio_clip`.
@@ -546,10 +555,12 @@ git commit -m "feat: ClipEditor audio clips, update with color validation, batch
 ### Task 4: ClipEditor.editClipNotes — select / remove / transform / add
 
 **Files:**
+
 - Modify: `src/domain/clip-editor.ts`
 - Test: `test/unit/domain/edit-clip-notes.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: `getClip` + `replaceClipNotes` (no new port surface), `validateNotes`.
 - Produces (used by Task 6):
   - `interface NoteSelect { pitchMin?; pitchMax?; startBeat?; endBeat? }` (startBeat inclusive, endBeat exclusive; omitted bounds are open)
@@ -635,9 +646,9 @@ describe("ClipEditor.editClipNotes", () => {
       clips.editClipNotes(clipId, { remove: true, transform: { transpose: 1 } }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     const audio = await fake.createAudioClip("t2", "s1", "/x.wav");
-    await expect(
-      clips.editClipNotes(audio.id, { remove: true }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(clips.editClipNotes(audio.id, { remove: true })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
     expect(fake.undoSteps).toEqual([]);
   });
 
@@ -762,10 +773,12 @@ git commit -m "feat: edit_clip_notes - filter-based remove/transform/add with cl
 ### Task 5: TrackService scene update/delete
 
 **Files:**
+
 - Modify: `src/domain/track-service.ts`
 - Test: `test/unit/domain/scene-service.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: port scene methods (Task 2).
 - Produces (used by Task 6):
   - `TrackService.updateScene(id: SceneId, patch: ScenePatch): Promise<SceneSummary>` — rejects empty patch, fail-fast existence check via `getSet().scenes`, label `update_scene`, returns fresh summary.
@@ -863,11 +876,13 @@ git commit -m "feat: scene rename and batch delete in TrackService"
 ### Task 6: MCP tools — 6 new, 21 total
 
 **Files:**
+
 - Modify: `src/mcp/tools/clips.ts` (add 4 tools), `src/mcp/tools/tracks.ts` (add 2 tools)
 - Modify: `test/unit/mcp/server.test.ts` (tool list → 21 + a round-trip test), `test/component/http-auth.test.ts` (`tools.length` → 21)
 - Test: extended `test/unit/mcp/server.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ClipEditor` (Tasks 3-4: `createAudioClip`, `updateClip`, `deleteClips`, `editClipNotes`, types `ClipNotesEdit`), `TrackService` (Task 5). No ToolDeps changes — the services already exist in deps.
 - Produces: tools `create_audio_clip`, `update_clip`, `delete_clips`, `edit_clip_notes`, `update_scene`, `delete_scenes`. `edit_clip_notes` returns `{clipId, noteCount}` only.
 
@@ -876,29 +891,29 @@ git commit -m "feat: scene rename and batch delete in TrackService"
 In `test/unit/mcp/server.test.ts`: extend the expected sorted name list to all 21 tools (existing 15 + the 6 above); add:
 
 ```ts
-  it("edit_clip_notes round-trip returns only clipId and noteCount", async () => {
-    await call(client, "create_tracks", { tracks: [{ type: "midi" }] });
-    await call(client, "create_scenes", { count: 1 });
-    const created = await call(client, "create_midi_clip", {
-      trackId: "t1",
-      sceneId: "s1",
-      lengthBeats: 4,
-      notes: [
-        [36, 0, 0.5, 100],
-        [42, 0.5, 0.25, 60],
-      ],
-    });
-    const edited = await call(client, "edit_clip_notes", {
-      clipId: created.payload.clip.id,
-      select: { pitchMin: 42 },
-      remove: true,
-    });
-    expect(edited.payload).toEqual({
-      ok: true,
-      clipId: created.payload.clip.id,
-      noteCount: 1,
-    });
+it("edit_clip_notes round-trip returns only clipId and noteCount", async () => {
+  await call(client, "create_tracks", { tracks: [{ type: "midi" }] });
+  await call(client, "create_scenes", { count: 1 });
+  const created = await call(client, "create_midi_clip", {
+    trackId: "t1",
+    sceneId: "s1",
+    lengthBeats: 4,
+    notes: [
+      [36, 0, 0.5, 100],
+      [42, 0.5, 0.25, 60],
+    ],
   });
+  const edited = await call(client, "edit_clip_notes", {
+    clipId: created.payload.clip.id,
+    select: { pitchMin: 42 },
+    remove: true,
+  });
+  expect(edited.payload).toEqual({
+    ok: true,
+    clipId: created.payload.clip.id,
+    noteCount: 1,
+  });
+});
 ```
 
 In `test/component/http-auth.test.ts`: `expect(tools.length).toBe(21)`.
@@ -1050,9 +1065,11 @@ git commit -m "feat: clip and scene MCP tools (21 tools total)"
 ### Task 7: Component scenario — edit an existing set
 
 **Files:**
+
 - Create: `test/component/edit-existing-set.test.ts`
 
 **Interfaces:**
+
 - Consumes: helpers + all 21 tools. This mirrors acceptance scenario 2 from the design spec (§3) — the smoke suite in Plan 3 will replay it inside real Live.
 
 - [ ] **Step 1: Write test/component/edit-existing-set.test.ts**
@@ -1130,7 +1147,11 @@ describe("scenario: AI edits an existing set", () => {
     expect(thin.payload.noteCount).toBe(6);
 
     // 3. Rename + color the clip; rename a scene; drop the unused scene.
-    await callTool(client, "update_clip", { clipId, name: "Groove v2", color: "#22CC88" });
+    await callTool(client, "update_clip", {
+      clipId,
+      name: "Groove v2",
+      color: "#22CC88",
+    });
     await callTool(client, "update_scene", { sceneId: "s1", name: "Verse" });
     await callTool(client, "delete_scenes", { sceneIds: ["s2"] });
 
@@ -1182,10 +1203,12 @@ git commit -m "test: edit-existing-set component scenario (acceptance scenario 2
 ### Task 8: Generated docs/tools.md + CI freshness gate + docs
 
 **Files:**
+
 - Create: `scripts/gen-tools-md.ts`, `docs/tools.md` (generated)
 - Modify: `package.json` (script), `tsconfig.json` (include scripts), `.github/workflows/ci.yml`, `docs/capability-map.md`, `README.md`
 
 **Interfaces:**
+
 - Consumes: `allTools` registry.
 - Produces: `npm run gen:tools`; CI fails when `docs/tools.md` is stale.
 
@@ -1218,7 +1241,10 @@ for (const tool of allTools) {
   }
 }
 
-writeFileSync(fileURLToPath(new URL("../docs/tools.md", import.meta.url)), lines.join("\n"));
+writeFileSync(
+  fileURLToPath(new URL("../docs/tools.md", import.meta.url)),
+  lines.join("\n"),
+);
 console.log(`docs/tools.md: ${allTools.length} tools documented.`);
 ```
 
@@ -1229,8 +1255,8 @@ console.log(`docs/tools.md: ${allTools.length} tools documented.`);
 - `.github/workflows/ci.yml`, `check` job, after the `npm run format:check` step:
 
 ```yaml
-      - run: npm run gen:tools
-      - run: git diff --exit-code docs/tools.md
+- run: npm run gen:tools
+- run: git diff --exit-code docs/tools.md
 ```
 
 - [ ] **Step 3: Generate and verify**
