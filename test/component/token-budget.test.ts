@@ -43,4 +43,14 @@ describe("token economy budgets (P0)", () => {
     expect(bytes).toBeLessThan(4096);
     expect(JSON.stringify(payload)).not.toContain('"notes"');
   });
+
+  it("get_device stays under 1.5 KB", async () => {
+    await stack.fake.insertDevice("t1", "Reverb");
+    const inserted = stack.fake.getTrack("t1").devices[0];
+    const { bytes, payload } = await callTool(stack.client, "get_device", {
+      deviceId: inserted.id,
+    });
+    expect(payload.device.params.length).toBeGreaterThan(2);
+    expect(bytes).toBeLessThan(1536);
+  });
 });
