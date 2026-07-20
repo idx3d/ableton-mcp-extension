@@ -10,7 +10,7 @@ open and listens on `localhost` (Streamable HTTP, token-protected).
 
 ## Status
 
-**Foundation phase.** The MCP server core (10 tools) runs against an in-memory
+**Foundation phase.** The MCP server core (15 tools) runs against an in-memory
 FakeLive — try it with `npm run dev:fake`. The real Ableton adapter and the
 installable extension are in progress (see `docs/plans/`).
 

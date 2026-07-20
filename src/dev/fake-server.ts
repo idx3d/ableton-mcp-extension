@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { FakeLive } from "../adapters/fake/fake-live.js";
 import { ClipEditor } from "../domain/clip-editor.js";
+import { DeviceService } from "../domain/device-service.js";
+import { MixerService } from "../domain/mixer-service.js";
 import { SetInspector } from "../domain/set-inspector.js";
 import { SongService } from "../domain/song-service.js";
 import { TrackService } from "../domain/track-service.js";
@@ -28,6 +30,9 @@ async function main(): Promise<void> {
     ],
     "Demo Beat",
   );
+  await fake.insertDevice("t1", "Reverb");
+  await fake.setDeviceParams("d1", { "Dry/Wet": 0.25 });
+  await fake.setMixer("t2", { volume: 0.75, sends: [{ returnId: "r2", value: 0.2 }] });
 
   const token = process.env.ABLETON_MCP_TOKEN ?? randomUUID();
   const server = await startHttpServer({
@@ -39,6 +44,8 @@ async function main(): Promise<void> {
         tracks: new TrackService(fake),
         clips: new ClipEditor(fake),
         song: new SongService(fake),
+        devices: new DeviceService(fake),
+        mixer: new MixerService(fake),
       }),
   });
 

@@ -3,6 +3,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { beforeEach, describe, expect, it } from "vitest";
 import { FakeLive } from "../../../src/adapters/fake/fake-live.js";
 import { ClipEditor } from "../../../src/domain/clip-editor.js";
+import { DeviceService } from "../../../src/domain/device-service.js";
+import { MixerService } from "../../../src/domain/mixer-service.js";
 import { SetInspector } from "../../../src/domain/set-inspector.js";
 import { SongService } from "../../../src/domain/song-service.js";
 import { TrackService } from "../../../src/domain/track-service.js";
@@ -15,6 +17,8 @@ function buildDeps(fake: FakeLive): ToolDeps {
     tracks: new TrackService(fake),
     clips: new ClipEditor(fake),
     song: new SongService(fake),
+    devices: new DeviceService(fake),
+    mixer: new MixerService(fake),
   };
 }
 
@@ -44,18 +48,23 @@ describe("MCP server over in-memory transport", () => {
     client = await connect(fake);
   });
 
-  it("lists the 10 v1 tools", async () => {
+  it("lists the 15 v1 tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         "create_midi_clip",
         "create_scenes",
         "create_tracks",
+        "delete_device",
         "delete_tracks",
         "get_clip",
+        "get_device",
         "get_set",
         "get_track",
+        "insert_device",
         "replace_clip_notes",
+        "set_device_params",
+        "set_mixer",
         "update_song",
         "update_track",
       ].sort(),
@@ -93,5 +102,42 @@ describe("MCP server over in-memory transport", () => {
     expect(isError).toBe(true);
     expect(payload).toMatchObject({ ok: false, code: "NOT_FOUND" });
     expect(payload.hint).toContain("get_set");
+  });
+
+  it("device round-trip: insert, tweak, read, mixer", async () => {
+    await call(client, "create_tracks", { tracks: [{ type: "midi", name: "Pad" }] });
+    const inserted = await call(client, "insert_device", {
+      trackId: "t1",
+      device: "Reverb",
+    });
+    expect(inserted.payload.ok).toBe(true);
+    const deviceId = inserted.payload.device.id;
+
+    const tweaked = await call(client, "set_device_params", {
+      deviceId,
+      params: { "Dry/Wet": 0.25 },
+    });
+    expect(tweaked.payload).toMatchObject({
+      ok: true,
+      deviceId,
+      changed: { "Dry/Wet": 0.25 },
+    });
+
+    const detail = await call(client, "get_device", { deviceId });
+    expect(
+      detail.payload.device.params.find((p: { name: string }) => p.name === "Dry/Wet")
+        .value,
+    ).toBe(0.25);
+
+    const mixed = await call(client, "set_mixer", {
+      updates: [{ trackId: "t1", volume: 0.5, sends: [{ returnId: "r1", value: 0.2 }] }],
+    });
+    expect(mixed.payload).toMatchObject({ ok: true, updated: ["t1"] });
+    expect(fake.undoSteps).toEqual([
+      "create_tracks",
+      "insert_device",
+      "set_device_params",
+      "set_mixer",
+    ]);
   });
 });

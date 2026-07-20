@@ -2,6 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { FakeLive } from "../../src/adapters/fake/fake-live.js";
 import { ClipEditor } from "../../src/domain/clip-editor.js";
+import { DeviceService } from "../../src/domain/device-service.js";
+import { MixerService } from "../../src/domain/mixer-service.js";
 import { SetInspector } from "../../src/domain/set-inspector.js";
 import { SongService } from "../../src/domain/song-service.js";
 import { TrackService } from "../../src/domain/track-service.js";
@@ -28,6 +30,8 @@ export async function startTestStack(fake = new FakeLive()): Promise<TestStack> 
         tracks: new TrackService(fake),
         clips: new ClipEditor(fake),
         song: new SongService(fake),
+        devices: new DeviceService(fake),
+        mixer: new MixerService(fake),
       }),
   });
   const client = new Client({ name: "component-test", version: "0.0.0" });

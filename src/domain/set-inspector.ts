@@ -2,6 +2,8 @@ import type { LivePort } from "../port/live-port.js";
 import type {
   ClipDetail,
   ClipId,
+  DeviceDetail,
+  DeviceId,
   SetSnapshot,
   TrackDetail,
   TrackId,
@@ -20,5 +22,9 @@ export class SetInspector {
 
   getClip(id: ClipId): ClipDetail {
     return this.live.getClip(id);
+  }
+
+  getDevice(id: DeviceId): DeviceDetail {
+    return this.live.getDevice(id);
   }
 }
