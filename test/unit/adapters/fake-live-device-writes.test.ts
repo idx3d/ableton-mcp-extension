@@ -18,13 +18,13 @@ describe("FakeLive device writes", () => {
       "Decay Time",
       "Room Size",
     ]);
-    expect(fake.getTrack("t1").deviceNames).toEqual(["Reverb"]);
+    expect((await fake.getTrack("t1")).deviceNames).toEqual(["Reverb"]);
   });
 
   it("inserts at an index and rejects out-of-range indexes", async () => {
     await fake.insertDevice("t1", "Reverb");
     await fake.insertDevice("t1", "Compressor", 0);
-    expect(fake.getTrack("t1").deviceNames).toEqual(["Compressor", "Reverb"]);
+    expect((await fake.getTrack("t1")).deviceNames).toEqual(["Compressor", "Reverb"]);
     await expect(fake.insertDevice("t1", "Reverb", 5)).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
@@ -40,9 +40,9 @@ describe("FakeLive device writes", () => {
   it("sets params by name and validates name, range, quantization", async () => {
     await fake.insertDevice("t1", "Reverb");
     await fake.setDeviceParams("d1", { "Dry/Wet": 0.35 });
-    expect(fake.getDevice("d1").params.find((p) => p.name === "Dry/Wet")?.value).toBe(
-      0.35,
-    );
+    expect(
+      (await fake.getDevice("d1")).params.find((p) => p.name === "Dry/Wet")?.value,
+    ).toBe(0.35);
     await expect(fake.setDeviceParams("d1", { Nope: 1 })).rejects.toMatchObject({
       code: "INVALID_INPUT",
       hint: expect.stringContaining("Dry/Wet"),
@@ -58,10 +58,8 @@ describe("FakeLive device writes", () => {
   it("deletes devices; stale IDs then 404", async () => {
     await fake.insertDevice("t1", "Reverb");
     await fake.deleteDevice("d1");
-    expect(fake.getTrack("t1").devices).toEqual([]);
-    expect(() => fake.getDevice("d1")).toThrowError(
-      expect.objectContaining({ code: "NOT_FOUND" }),
-    );
+    expect((await fake.getTrack("t1")).devices).toEqual([]);
+    await expect(fake.getDevice("d1")).rejects.toMatchObject({ code: "NOT_FOUND" });
     const d2 = await fake.insertDevice("t1", "Reverb");
     expect(d2.id).toBe("d2"); // IDs never reused
   });
@@ -72,7 +70,7 @@ describe("FakeLive device writes", () => {
       pan: -0.25,
       sends: [{ returnId: "r1", value: 0.4 }],
     });
-    expect(fake.getTrack("t1").mixer).toEqual({
+    expect((await fake.getTrack("t1")).mixer).toEqual({
       volume: 0.7,
       pan: -0.25,
       sends: [
@@ -93,6 +91,6 @@ describe("FakeLive device writes", () => {
     expect(items1).toEqual(["Off", "On"]);
     items1[0] = "MUTATED";
     expect(items2).toEqual(["Off", "On"]);
-    expect(fake.getDevice(d2.id).params[0].valueItems).toEqual(["Off", "On"]);
+    expect((await fake.getDevice(d2.id)).params[0].valueItems).toEqual(["Off", "On"]);
   });
 });

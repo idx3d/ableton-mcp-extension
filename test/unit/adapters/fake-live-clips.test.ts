@@ -28,9 +28,9 @@ describe("FakeLive MIDI clips", () => {
       looping: true,
       noteCount: 4,
     });
-    expect(fake.getClip("c1").notes).toEqual(KICK);
-    expect(fake.getTrack("t1").slots[0].clip?.id).toBe("c1");
-    expect(fake.getSet().tracks[0].clipCount).toBe(1);
+    expect((await fake.getClip("c1")).notes).toEqual(KICK);
+    expect((await fake.getTrack("t1")).slots[0].clip?.id).toBe("c1");
+    expect((await fake.getSet()).tracks[0].clipCount).toBe(1);
   });
 
   it("rejects a clip in an occupied slot with CONFLICT", async () => {
@@ -59,7 +59,7 @@ describe("FakeLive MIDI clips", () => {
     await fake.createMidiClip("t1", "s1", 4, KICK);
     const hats: Note[] = [[42, 0.5, 0.25, 70]];
     await fake.replaceClipNotes("c1", hats);
-    expect(fake.getClip("c1").notes).toEqual(hats);
+    expect((await fake.getClip("c1")).notes).toEqual(hats);
     await expect(fake.replaceClipNotes("c9", hats)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
@@ -68,7 +68,7 @@ describe("FakeLive MIDI clips", () => {
   it("deleting a track removes its clips", async () => {
     await fake.createMidiClip("t1", "s1", 4, KICK);
     await fake.deleteTracks(["t1"]);
-    expect(() => fake.getClip("c1")).toThrow();
+    await expect(fake.getClip("c1")).rejects.toThrow();
   });
 
   it("does not share NoteExtras objects with the caller", async () => {
@@ -76,9 +76,9 @@ describe("FakeLive MIDI clips", () => {
     const notes: Note[] = [[60, 0, 1, 100, extras]];
     await fake.createMidiClip("t1", "s1", 4, notes);
     extras.prob = 0.9;
-    expect(fake.getClip("c1").notes).toEqual([[60, 0, 1, 100, { prob: 0.5 }]]);
-    const returned = fake.getClip("c1").notes[0];
+    expect((await fake.getClip("c1")).notes).toEqual([[60, 0, 1, 100, { prob: 0.5 }]]);
+    const returned = (await fake.getClip("c1")).notes[0];
     (returned[4] as { prob: number }).prob = 0.1;
-    expect(fake.getClip("c1").notes[0][4]).toEqual({ prob: 0.5 });
+    expect((await fake.getClip("c1")).notes[0][4]).toEqual({ prob: 0.5 });
   });
 });

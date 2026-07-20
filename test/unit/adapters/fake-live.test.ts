@@ -8,8 +8,8 @@ describe("FakeLive tracks & scenes", () => {
     fake = new FakeLive();
   });
 
-  it("starts as an empty set", () => {
-    const set = fake.getSet();
+  it("starts as an empty set", async () => {
+    const set = await fake.getSet();
     expect(set.tempo).toBe(120);
     expect(set.tracks).toEqual([]);
     expect(set.scenes).toEqual([]);
@@ -31,13 +31,13 @@ describe("FakeLive tracks & scenes", () => {
       clipCount: 0,
     });
     expect(created[1].name).toBe("Audio 2"); // default name: "<Type> <n>"
-    expect(fake.getSet().tracks).toHaveLength(2);
+    expect((await fake.getSet()).tracks).toHaveLength(2);
   });
 
   it("updates a track and rejects stale IDs", async () => {
     await fake.createTracks([{ type: "midi" }]);
     await fake.updateTrack("t1", { name: "Bass", muted: true });
-    const t = fake.getTrack("t1");
+    const t = await fake.getTrack("t1");
     expect(t.name).toBe("Bass");
     expect(t.muted).toBe(true);
 
@@ -49,8 +49,8 @@ describe("FakeLive tracks & scenes", () => {
   it("deletes tracks; deleted IDs are never reused", async () => {
     await fake.createTracks([{ type: "midi" }, { type: "midi" }]);
     await fake.deleteTracks(["t1"]);
-    expect(fake.getSet().tracks.map((t) => t.id)).toEqual(["t2"]);
-    expect(() => fake.getTrack("t1")).toThrow(PortError);
+    expect((await fake.getSet()).tracks.map((t) => t.id)).toEqual(["t2"]);
+    await expect(fake.getTrack("t1")).rejects.toThrow(PortError);
     const [t3] = await fake.createTracks([{ type: "midi" }]);
     expect(t3.id).toBe("t3");
   });
@@ -59,7 +59,7 @@ describe("FakeLive tracks & scenes", () => {
     const scenes = await fake.createScenes(2);
     expect(scenes.map((s) => s.id)).toEqual(["s1", "s2"]);
     await fake.updateSong({ tempo: 91.5 });
-    expect(fake.getSet().tempo).toBe(91.5);
+    expect((await fake.getSet()).tempo).toBe(91.5);
   });
 
   it("records one undo step per transact call", async () => {

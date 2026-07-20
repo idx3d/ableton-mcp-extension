@@ -16,9 +16,9 @@ export class MixerService {
     if (updates.length === 0) {
       throw new PortError("INVALID_INPUT", "updates must not be empty");
     }
-    const returnIds = new Set(this.live.getSet().returnTracks.map((r) => r.id));
+    const returnIds = new Set((await this.live.getSet()).returnTracks.map((r) => r.id));
     for (const update of updates) {
-      this.live.getTrack(update.trackId); // fail fast on stale ID
+      await this.live.getTrack(update.trackId); // fail fast on stale ID
       if (update.volume !== undefined && (update.volume < 0 || update.volume > 1)) {
         throw new PortError(
           "INVALID_INPUT",

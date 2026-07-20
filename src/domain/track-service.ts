@@ -23,7 +23,7 @@ export class TrackService {
   }
 
   async updateTrack(id: TrackId, patch: TrackPatch): Promise<TrackSummary> {
-    this.live.getTrack(id); // fail fast on stale ID before mutating
+    await this.live.getTrack(id); // fail fast on stale ID before mutating
     await this.live.transact("update_track", () => this.live.updateTrack(id, patch));
     return this.live.getTrack(id);
   }
@@ -32,7 +32,7 @@ export class TrackService {
     if (ids.length === 0) {
       throw new PortError("INVALID_INPUT", "ids must not be empty");
     }
-    for (const id of ids) this.live.getTrack(id); // all-or-nothing
+    for (const id of ids) await this.live.getTrack(id); // all-or-nothing
     return this.live.transact("delete_tracks", () => this.live.deleteTracks(ids));
   }
 
@@ -43,8 +43,8 @@ export class TrackService {
     return this.live.transact("create_scenes", () => this.live.createScenes(count));
   }
 
-  private requireSceneId(id: SceneId): void {
-    if (!this.live.getSet().scenes.some((s) => s.id === id)) {
+  private async requireSceneId(id: SceneId): Promise<void> {
+    if (!(await this.live.getSet()).scenes.some((s) => s.id === id)) {
       throw PortError.notFound("scene", id);
     }
   }
@@ -53,9 +53,9 @@ export class TrackService {
     if (Object.keys(patch).length === 0) {
       throw new PortError("INVALID_INPUT", "patch must not be empty");
     }
-    this.requireSceneId(id);
+    await this.requireSceneId(id);
     await this.live.transact("update_scene", () => this.live.updateScene(id, patch));
-    const scene = this.live.getSet().scenes.find((s) => s.id === id);
+    const scene = (await this.live.getSet()).scenes.find((s) => s.id === id);
     return scene as SceneSummary;
   }
 
@@ -63,7 +63,7 @@ export class TrackService {
     if (ids.length === 0) {
       throw new PortError("INVALID_INPUT", "ids must not be empty");
     }
-    for (const id of ids) this.requireSceneId(id);
+    for (const id of ids) await this.requireSceneId(id);
     return this.live.transact("delete_scenes", () => this.live.deleteScenes(ids));
   }
 }

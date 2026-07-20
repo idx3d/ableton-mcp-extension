@@ -9,7 +9,7 @@ export const setTools: ToolDef[] = [
       "id, name, type, devices, clip count) and scenes. Call this first to obtain IDs; " +
       "drill down with get_track / get_clip.",
     inputSchema: {},
-    handler: async (_args, deps) => ({ set: deps.inspector.getSet() }),
+    handler: async (_args, deps) => ({ set: await deps.inspector.getSet() }),
   },
   {
     name: "get_track",
@@ -18,7 +18,7 @@ export const setTools: ToolDef[] = [
       "Use the trackId from get_set.",
     inputSchema: { trackId: z.string() },
     handler: async (args, deps) => ({
-      track: deps.inspector.getTrack(args.trackId as string),
+      track: await deps.inspector.getTrack(args.trackId as string),
     }),
   },
   {
@@ -28,7 +28,7 @@ export const setTools: ToolDef[] = [
       "[pitch, startBeat, durationBeats, velocity, extras?].",
     inputSchema: { clipId: z.string() },
     handler: async (args, deps) => ({
-      clip: deps.inspector.getClip(args.clipId as string),
+      clip: await deps.inspector.getClip(args.clipId as string),
     }),
   },
   {

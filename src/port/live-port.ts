@@ -21,14 +21,15 @@ import type {
 /**
  * Everything the MCP server needs from Ableton Live.
  * Implemented by adapters/sdk-* (real Live, Plan 3) and adapters/fake (tests/dev).
- * Reads are synchronous and reflect Live's current state at call time.
+ * Reads are async because some SDK values (device parameters) require async
+ * host calls; implementations must not mutate state in reads.
  * Writes are async; callers group them into one undo step via transact().
  */
 export interface LivePort {
-  getSet(): SetSnapshot;
-  getTrack(id: TrackId): TrackDetail;
-  getClip(id: ClipId): ClipDetail;
-  getDevice(id: DeviceId): DeviceDetail;
+  getSet(): Promise<SetSnapshot>;
+  getTrack(id: TrackId): Promise<TrackDetail>;
+  getClip(id: ClipId): Promise<ClipDetail>;
+  getDevice(id: DeviceId): Promise<DeviceDetail>;
 
   createTracks(specs: TrackSpec[]): Promise<TrackSummary[]>;
   updateTrack(id: TrackId, patch: TrackPatch): Promise<void>;

@@ -46,7 +46,7 @@ describe("token economy budgets (P0)", () => {
 
   it("get_device stays under 1.5 KB", async () => {
     await stack.fake.insertDevice("t1", "Reverb");
-    const inserted = stack.fake.getTrack("t1").devices[0];
+    const inserted = (await stack.fake.getTrack("t1")).devices[0];
     const { bytes, payload } = await callTool(stack.client, "get_device", {
       deviceId: inserted.id,
     });
