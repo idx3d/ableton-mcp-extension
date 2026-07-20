@@ -1,5 +1,7 @@
 import type { ZodRawShape } from "zod";
 import type { ClipEditor } from "../../domain/clip-editor.js";
+import type { DeviceService } from "../../domain/device-service.js";
+import type { MixerService } from "../../domain/mixer-service.js";
 import type { SetInspector } from "../../domain/set-inspector.js";
 import type { SongService } from "../../domain/song-service.js";
 import type { TrackService } from "../../domain/track-service.js";
@@ -9,6 +11,8 @@ export interface ToolDeps {
   tracks: TrackService;
   clips: ClipEditor;
   song: SongService;
+  devices: DeviceService;
+  mixer: MixerService;
 }
 
 export interface ToolDef {

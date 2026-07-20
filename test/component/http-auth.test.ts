@@ -3,6 +3,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FakeLive } from "../../src/adapters/fake/fake-live.js";
 import { ClipEditor } from "../../src/domain/clip-editor.js";
+import { DeviceService } from "../../src/domain/device-service.js";
+import { MixerService } from "../../src/domain/mixer-service.js";
 import { SetInspector } from "../../src/domain/set-inspector.js";
 import { SongService } from "../../src/domain/song-service.js";
 import { TrackService } from "../../src/domain/track-service.js";
@@ -18,6 +20,8 @@ function makeServerFactory(fake: FakeLive) {
       tracks: new TrackService(fake),
       clips: new ClipEditor(fake),
       song: new SongService(fake),
+      devices: new DeviceService(fake),
+      mixer: new MixerService(fake),
     });
 }
 
@@ -46,7 +50,7 @@ describe("HTTP transport", () => {
       }),
     );
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(10);
+    expect(tools.length).toBe(15);
     await client.close();
   });
 

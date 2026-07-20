@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { FakeLive } from "../adapters/fake/fake-live.js";
 import { ClipEditor } from "../domain/clip-editor.js";
+import { DeviceService } from "../domain/device-service.js";
+import { MixerService } from "../domain/mixer-service.js";
 import { SetInspector } from "../domain/set-inspector.js";
 import { SongService } from "../domain/song-service.js";
 import { TrackService } from "../domain/track-service.js";
@@ -39,6 +41,8 @@ async function main(): Promise<void> {
         tracks: new TrackService(fake),
         clips: new ClipEditor(fake),
         song: new SongService(fake),
+        devices: new DeviceService(fake),
+        mixer: new MixerService(fake),
       }),
   });
 
