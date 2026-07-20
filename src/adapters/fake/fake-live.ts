@@ -3,7 +3,14 @@ import type { LivePort } from "../../port/live-port.js";
 import type {
   ClipDetail,
   ClipId,
+  DeviceDetail,
+  DeviceId,
+  DeviceParam,
+  MixerPatch,
+  MixerState,
   Note,
+  ReturnTrackId,
+  ReturnTrackSummary,
   SceneId,
   SceneSummary,
   SetSnapshot,
@@ -23,6 +30,18 @@ interface FakeClip {
   notes: Note[];
 }
 
+interface FakeDevice {
+  id: DeviceId;
+  name: string;
+  params: DeviceParam[];
+}
+
+interface FakeMixer {
+  volume: number;
+  pan: number;
+  sends: Map<ReturnTrackId, number>;
+}
+
 interface FakeTrack {
   id: TrackId;
   name: string;
@@ -32,6 +51,8 @@ interface FakeTrack {
   armed: boolean;
   /** session clip per scene */
   clips: Map<SceneId, FakeClip>;
+  devices: FakeDevice[];
+  mixer: FakeMixer;
 }
 
 interface FakeScene {
@@ -51,7 +72,11 @@ export class FakeLive implements LivePort {
   private tempo = 120;
   private scaleName = "Major";
   private rootNote = 0;
-  private counters = { track: 0, scene: 0, clip: 0 };
+  private counters = { track: 0, scene: 0, clip: 0, device: 0 };
+  private returnTracks: ReturnTrackSummary[] = [
+    { id: "r1", name: "A-Reverb" },
+    { id: "r2", name: "B-Delay" },
+  ];
   readonly undoSteps: string[] = [];
 
   // -- reads ----------------------------------------------------------------
@@ -63,6 +88,7 @@ export class FakeLive implements LivePort {
       rootNote: this.rootNote,
       tracks: this.tracks.map((t) => this.summarize(t)),
       scenes: this.scenes.map((s) => ({ ...s })),
+      returnTracks: this.returnTracks.map((r) => ({ ...r })),
     };
   }
 
@@ -74,6 +100,8 @@ export class FakeLive implements LivePort {
         const clip = track.clips.get(scene.id);
         return { sceneId: scene.id, clip: clip ? this.summarizeClip(clip) : null };
       }),
+      devices: track.devices.map((d) => ({ id: d.id, name: d.name })),
+      mixer: this.mixerState(track),
     };
   }
 
@@ -86,6 +114,17 @@ export class FakeLive implements LivePort {
       trackId: track.id,
       sceneId,
       notes: this.cloneNotes(clip.notes),
+    };
+  }
+
+  getDevice(id: DeviceId): DeviceDetail {
+    const found = this.findDevice(id);
+    if (!found) throw PortError.notFound("device", id);
+    return {
+      id: found.device.id,
+      name: found.device.name,
+      trackId: found.track.id,
+      params: found.device.params.map((p) => ({ ...p })),
     };
   }
 
@@ -106,6 +145,8 @@ export class FakeLive implements LivePort {
         soloed: false,
         armed: false,
         clips: new Map(),
+        devices: [],
+        mixer: this.defaultMixer(),
       };
       this.tracks.push(track);
       return this.summarize(track);
@@ -176,6 +217,26 @@ export class FakeLive implements LivePort {
     found.clip.notes = this.cloneNotes(notes);
   }
 
+  async insertDevice(
+    _trackId: TrackId,
+    _deviceName: string,
+    _index?: number,
+  ): Promise<DeviceDetail> {
+    throw new PortError("UNSUPPORTED", "insertDevice not implemented yet");
+  }
+
+  async setDeviceParams(_id: DeviceId, _params: Record<string, number>): Promise<void> {
+    throw new PortError("UNSUPPORTED", "setDeviceParams not implemented yet");
+  }
+
+  async deleteDevice(_id: DeviceId): Promise<void> {
+    throw new PortError("UNSUPPORTED", "deleteDevice not implemented yet");
+  }
+
+  async setMixer(_trackId: TrackId, _patch: MixerPatch): Promise<void> {
+    throw new PortError("UNSUPPORTED", "setMixer not implemented yet");
+  }
+
   async updateSong(patch: SongPatch): Promise<void> {
     if (patch.tempo !== undefined) this.tempo = patch.tempo;
   }
@@ -187,6 +248,25 @@ export class FakeLive implements LivePort {
   }
 
   // -- internals ------------------------------------------------------------
+
+  private defaultMixer(): FakeMixer {
+    return {
+      volume: 0.85,
+      pan: 0,
+      sends: new Map(this.returnTracks.map((r) => [r.id, 0])),
+    };
+  }
+
+  private mixerState(track: FakeTrack): MixerState {
+    return {
+      volume: track.mixer.volume,
+      pan: track.mixer.pan,
+      sends: this.returnTracks.map((r) => ({
+        returnId: r.id,
+        value: track.mixer.sends.get(r.id) ?? 0,
+      })),
+    };
+  }
 
   private cloneNotes(notes: Note[]): Note[] {
     return notes.map(
@@ -202,7 +282,7 @@ export class FakeLive implements LivePort {
       muted: track.muted,
       soloed: track.soloed,
       armed: track.armed,
-      deviceNames: [],
+      deviceNames: track.devices.map((d) => d.name),
       clipCount: track.clips.size,
     };
   }
@@ -236,6 +316,16 @@ export class FakeLive implements LivePort {
       for (const [sceneId, clip] of track.clips) {
         if (clip.id === id) return { track, sceneId, clip };
       }
+    }
+    return undefined;
+  }
+
+  protected findDevice(
+    id: DeviceId,
+  ): { track: FakeTrack; device: FakeDevice } | undefined {
+    for (const track of this.tracks) {
+      const device = track.devices.find((d) => d.id === id);
+      if (device) return { track, device };
     }
     return undefined;
   }

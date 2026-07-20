@@ -1,6 +1,9 @@
 import type {
   ClipDetail,
   ClipId,
+  DeviceDetail,
+  DeviceId,
+  MixerPatch,
   Note,
   SceneId,
   SceneSummary,
@@ -23,6 +26,7 @@ export interface LivePort {
   getSet(): SetSnapshot;
   getTrack(id: TrackId): TrackDetail;
   getClip(id: ClipId): ClipDetail;
+  getDevice(id: DeviceId): DeviceDetail;
 
   createTracks(specs: TrackSpec[]): Promise<TrackSummary[]>;
   updateTrack(id: TrackId, patch: TrackPatch): Promise<void>;
@@ -36,6 +40,14 @@ export interface LivePort {
     name?: string,
   ): Promise<ClipDetail>;
   replaceClipNotes(id: ClipId, notes: Note[]): Promise<void>;
+  insertDevice(
+    trackId: TrackId,
+    deviceName: string,
+    index?: number,
+  ): Promise<DeviceDetail>;
+  setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void>;
+  deleteDevice(id: DeviceId): Promise<void>;
+  setMixer(trackId: TrackId, patch: MixerPatch): Promise<void>;
   updateSong(patch: SongPatch): Promise<void>;
 
   /** Group all writes inside fn into one undo step named undoLabel. */
