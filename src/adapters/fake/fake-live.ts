@@ -151,7 +151,10 @@ export class FakeLive implements LivePort {
       id: found.device.id,
       name: found.device.name,
       trackId: found.track.id,
-      params: found.device.params.map((p) => ({ ...p })),
+      params: found.device.params.map((p) => ({
+        ...p,
+        valueItems: p.valueItems ? [...p.valueItems] : undefined,
+      })),
     };
   }
 
@@ -268,7 +271,10 @@ export class FakeLive implements LivePort {
     const device: FakeDevice = {
       id: `d${++this.counters.device}`,
       name: deviceName,
-      params: template.map((p) => ({ ...p })),
+      params: template.map((p) => ({
+        ...p,
+        valueItems: p.valueItems ? [...p.valueItems] : undefined,
+      })),
     };
     track.devices.splice(at, 0, device);
     return this.getDevice(device.id);

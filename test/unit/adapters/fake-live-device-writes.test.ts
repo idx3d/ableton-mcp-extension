@@ -84,4 +84,15 @@ describe("FakeLive device writes", () => {
       fake.setMixer("t1", { sends: [{ returnId: "r9", value: 0.1 }] }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+
+  it("does not share valueItems arrays between inserted devices", async () => {
+    const d1 = await fake.insertDevice("t1", "Reverb");
+    const d2 = await fake.insertDevice("t1", "Reverb");
+    const items1 = d1.params[0].valueItems!;
+    const items2 = d2.params[0].valueItems!;
+    expect(items1).toEqual(["Off", "On"]);
+    items1[0] = "MUTATED";
+    expect(items2).toEqual(["Off", "On"]);
+    expect(fake.getDevice(d2.id).params[0].valueItems).toEqual(["Off", "On"]);
+  });
 });
