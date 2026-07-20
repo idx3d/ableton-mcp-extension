@@ -1,4 +1,8 @@
-import { createServer as createNodeServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer as createNodeServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
@@ -20,16 +24,18 @@ const LOCAL_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
 function isLocal(value: string): boolean {
   try {
     const url = value.includes("://") ? new URL(value) : new URL(`http://${value}`);
-    return LOCAL_HOSTS.includes(url.hostname) || LOCAL_HOSTS.includes(`[${url.hostname}]`);
+    return (
+      LOCAL_HOSTS.includes(url.hostname) || LOCAL_HOSTS.includes(`[${url.hostname}]`)
+    );
   } catch {
     return false;
   }
 }
 
 function deny(res: ServerResponse, status: number, message: string): void {
-  res.writeHead(status, { "Content-Type": "application/json" }).end(
-    JSON.stringify({ error: message }),
-  );
+  res
+    .writeHead(status, { "Content-Type": "application/json" })
+    .end(JSON.stringify({ error: message }));
 }
 
 /**
@@ -37,38 +43,44 @@ function deny(res: ServerResponse, status: number, message: string): void {
  * Security (P2, per spec §7): loopback bind, Host/Origin validation, bearer token.
  */
 export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpServer> {
-  const httpServer = createNodeServer(async (req: IncomingMessage, res: ServerResponse) => {
-    try {
-      const host = req.headers.host ?? "";
-      const origin = req.headers.origin;
-      if (!isLocal(host) || (origin !== undefined && !isLocal(origin))) {
-        return deny(res, 403, "Forbidden: localhost only");
-      }
-      if (req.headers.authorization !== `Bearer ${opts.token}`) {
-        return deny(res, 401, "Unauthorized: missing or invalid bearer token");
-      }
-      const url = new URL(req.url ?? "/", `http://${host}`);
-      if (url.pathname !== "/mcp") {
-        return deny(res, 404, "Not found");
-      }
+  const httpServer = createNodeServer(
+    async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const host = req.headers.host ?? "";
+        const origin = req.headers.origin;
+        if (!isLocal(host) || (origin !== undefined && !isLocal(origin))) {
+          return deny(res, 403, "Forbidden: localhost only");
+        }
+        if (req.headers.authorization !== `Bearer ${opts.token}`) {
+          return deny(res, 401, "Unauthorized: missing or invalid bearer token");
+        }
+        const url = new URL(req.url ?? "/", `http://${host}`);
+        if (url.pathname !== "/mcp") {
+          return deny(res, 404, "Not found");
+        }
 
-      // Stateless mode: fresh server + transport per request avoids session state.
-      const mcpServer = opts.createServer();
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-        enableJsonResponse: true,
-      });
-      res.on("close", () => {
-        transport.close().catch((err) => console.error("[ableton-mcp] transport close error:", err));
-        mcpServer.close().catch((err) => console.error("[ableton-mcp] server close error:", err));
-      });
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res);
-    } catch (error) {
-      console.error("[ableton-mcp] http error:", error);
-      if (!res.headersSent) deny(res, 500, "Internal server error");
-    }
-  });
+        // Stateless mode: fresh server + transport per request avoids session state.
+        const mcpServer = opts.createServer();
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+          enableJsonResponse: true,
+        });
+        res.on("close", () => {
+          transport
+            .close()
+            .catch((err) => console.error("[ableton-mcp] transport close error:", err));
+          mcpServer
+            .close()
+            .catch((err) => console.error("[ableton-mcp] server close error:", err));
+        });
+        await mcpServer.connect(transport);
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error("[ableton-mcp] http error:", error);
+        if (!res.headersSent) deny(res, 500, "Internal server error");
+      }
+    },
+  );
 
   httpServer.on("error", (err) => {
     console.error("[ableton-mcp] http server error:", err);

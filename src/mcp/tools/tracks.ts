@@ -54,7 +54,8 @@ export const trackTools: ToolDef[] = [
   },
   {
     name: "create_scenes",
-    description: "Append N scenes (1-64) to the set. Returns the created scenes with IDs.",
+    description:
+      "Append N scenes (1-64) to the set. Returns the created scenes with IDs.",
     inputSchema: { count: z.number().int().min(1).max(64) },
     handler: async (args, deps) => ({
       scenes: await deps.tracks.createScenes(args.count as number),

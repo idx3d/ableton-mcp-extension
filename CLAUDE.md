@@ -22,6 +22,14 @@ structural changes.
   result with a code (`NOT_FOUND`, `INVALID_INPUT`, `UNSUPPORTED`, `CONFLICT`,
   `INTERNAL`) and a recovery hint the model can act on.
 
+## Commands
+
+- `npm test` / `npm run typecheck` — must be green before any commit.
+- `npm run lint` — ESLint + `scripts/check-boundaries.mjs`, which machine-enforces
+  the SDK-quarantine and layer-direction rules above. If the boundary check fails,
+  fix the import direction — never the script.
+- `npm run format` (Prettier) — CI runs `format:check`.
+
 ## Documentation policy
 
 `docs/` is a maintained deliverable:

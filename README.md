@@ -24,6 +24,7 @@ installable extension are in progress (see `docs/plans/`).
 npm run dev:fake   # run the MCP server standalone against an in-memory fake Live
 npm start          # build + run inside real Ableton Live (Developer Mode)
 npm test           # unit + component tests (no Ableton required)
+npm run lint       # eslint + architecture boundary check
 npm run package    # bundle + produce the installable .ablx
 ```
 

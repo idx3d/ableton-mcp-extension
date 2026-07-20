@@ -16,7 +16,10 @@ export class ClipEditor {
 
   async createMidiClip(input: CreateMidiClipInput): Promise<ClipDetail> {
     if (!(input.lengthBeats > 0)) {
-      throw new PortError("INVALID_INPUT", `lengthBeats ${input.lengthBeats} must be > 0`);
+      throw new PortError(
+        "INVALID_INPUT",
+        `lengthBeats ${input.lengthBeats} must be > 0`,
+      );
     }
     validateNotes(input.notes);
     return this.live.transact("create_midi_clip", () =>
