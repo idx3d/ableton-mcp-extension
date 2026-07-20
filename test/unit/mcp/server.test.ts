@@ -48,15 +48,19 @@ describe("MCP server over in-memory transport", () => {
     client = await connect(fake);
   });
 
-  it("lists the 15 v1 tools", async () => {
+  it("lists the 21 v1 tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
+        "create_audio_clip",
         "create_midi_clip",
         "create_scenes",
         "create_tracks",
+        "delete_clips",
         "delete_device",
+        "delete_scenes",
         "delete_tracks",
+        "edit_clip_notes",
         "get_clip",
         "get_device",
         "get_set",
@@ -65,10 +69,36 @@ describe("MCP server over in-memory transport", () => {
         "replace_clip_notes",
         "set_device_params",
         "set_mixer",
+        "update_clip",
+        "update_scene",
         "update_song",
         "update_track",
       ].sort(),
     );
+  });
+
+  it("edit_clip_notes round-trip returns only clipId and noteCount", async () => {
+    await call(client, "create_tracks", { tracks: [{ type: "midi" }] });
+    await call(client, "create_scenes", { count: 1 });
+    const created = await call(client, "create_midi_clip", {
+      trackId: "t1",
+      sceneId: "s1",
+      lengthBeats: 4,
+      notes: [
+        [36, 0, 0.5, 100],
+        [42, 0.5, 0.25, 60],
+      ],
+    });
+    const edited = await call(client, "edit_clip_notes", {
+      clipId: created.payload.clip.id,
+      select: { pitchMin: 42 },
+      remove: true,
+    });
+    expect(edited.payload).toEqual({
+      ok: true,
+      clipId: created.payload.clip.id,
+      noteCount: 1,
+    });
   });
 
   it("get_set returns the snapshot in an ok envelope", async () => {
