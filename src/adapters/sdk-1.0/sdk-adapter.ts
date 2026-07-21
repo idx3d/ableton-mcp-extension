@@ -23,6 +23,7 @@ import {
   type Clip,
   type ClipSlot,
   type Device,
+  type DeviceParameter,
   type ExtensionContext,
   type Scene,
   type Song,
@@ -39,6 +40,7 @@ import type {
   ClipSummary,
   DeviceDetail,
   DeviceId,
+  DeviceParam,
   MixerPatch,
   MixerState,
   Note,
@@ -130,8 +132,9 @@ export class SdkAdapter implements LivePort {
     };
   }
 
-  async getDevice(_id: DeviceId): Promise<DeviceDetail> {
-    throw this.unsupported("getDevice");
+  async getDevice(id: DeviceId): Promise<DeviceDetail> {
+    const { track, device } = this.resolveDevice(id);
+    return await this.deviceDetail(track, device);
   }
 
   // -- writes ---------------------------------------------------------------
@@ -283,23 +286,103 @@ export class SdkAdapter implements LivePort {
   }
 
   async insertDevice(
-    _trackId: TrackId,
-    _deviceName: string,
-    _index?: number,
+    trackId: TrackId,
+    deviceName: string,
+    index?: number,
   ): Promise<DeviceDetail> {
-    throw this.unsupported("insertDevice");
+    const track = this.resolveTrack(trackId);
+    // Validate the insert position before touching Live so a bad index never
+    // opens an empty undo step; message mirrors FakeLive.
+    const at = index ?? track.devices.length;
+    if (!Number.isInteger(at) || at < 0 || at > track.devices.length) {
+      throw new PortError(
+        "INVALID_INPUT",
+        `device index ${index} out of range 0..${track.devices.length}`,
+      );
+    }
+    // The SDK has no device catalog; unknown names throw at insert time. Wrap
+    // any non-PortError throw as INVALID_INPUT (the SDK only accepts exact
+    // built-in Live device names).
+    let device: Device<V>;
+    try {
+      device = await track.insertDevice(deviceName, at);
+    } catch (err) {
+      if (err instanceof PortError) throw err;
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : `could not insert device "${deviceName}"`;
+      throw new PortError(
+        "INVALID_INPUT",
+        message,
+        "Use exact built-in Live device names, e.g. Reverb, Auto Filter.",
+      );
+    }
+    return await this.deviceDetail(track, device);
   }
 
-  async setDeviceParams(_id: DeviceId, _params: Record<string, number>): Promise<void> {
-    throw this.unsupported("setDeviceParams");
+  async setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void> {
+    const { device } = this.resolveDevice(id);
+    // Validate every entry against sync metadata BEFORE any setValue, so a bad
+    // entry never leaves a partial write (all-or-nothing). Messages match
+    // FakeLive verbatim.
+    const updates: Array<{ param: DeviceParameter<V>; value: number }> = [];
+    for (const [name, value] of Object.entries(params)) {
+      const param = device.parameters.find((p) => p.name === name);
+      if (!param) {
+        throw new PortError(
+          "INVALID_INPUT",
+          `device ${id} has no parameter "${name}"`,
+          `Valid parameters: ${device.parameters.map((p) => p.name).join(", ")}.`,
+        );
+      }
+      if (value < param.min || value > param.max) {
+        throw new PortError(
+          "INVALID_INPUT",
+          `parameter "${name}" value ${value} outside [${param.min}, ${param.max}]`,
+        );
+      }
+      if (param.isQuantized && !Number.isInteger(value)) {
+        throw new PortError(
+          "INVALID_INPUT",
+          `parameter "${name}" is quantized; value must be an integer`,
+        );
+      }
+      updates.push({ param, value });
+    }
+    // DeviceParameter values are async-only (docs/sdk-notes.md §7); the caller
+    // wraps this in transact for a single undo step.
+    await Promise.all(updates.map((u) => u.param.setValue(u.value)));
   }
 
-  async deleteDevice(_id: DeviceId): Promise<void> {
-    throw this.unsupported("deleteDevice");
+  async deleteDevice(id: DeviceId): Promise<void> {
+    const { track, device } = this.resolveDevice(id);
+    await track.deleteDevice(device);
+    this.deviceIds.forget(device);
   }
 
-  async setMixer(_trackId: TrackId, _patch: MixerPatch): Promise<void> {
-    throw this.unsupported("setMixer");
+  async setMixer(trackId: TrackId, patch: MixerPatch): Promise<void> {
+    const track = this.resolveTrack(trackId);
+    const mixer = track.mixer;
+    const returns = this.song.returnTracks;
+    // Resolve all send targets first (NOT_FOUND before any write). Sends are
+    // addressed by song.returnTracks index order, matching mixerState().
+    const sendWrites: Array<{ param: DeviceParameter<V>; value: number }> = [];
+    for (const send of patch.sends ?? []) {
+      const returnTrack = this.returnIds.resolve(send.returnId);
+      const index = returnTrack ? returns.indexOf(returnTrack) : -1;
+      const param = index === -1 ? undefined : mixer.sends[index];
+      if (!param) {
+        if (returnTrack) this.returnIds.forget(returnTrack);
+        throw PortError.notFound("return track", send.returnId);
+      }
+      sendWrites.push({ param, value: send.value });
+    }
+    const writes: Array<Promise<void>> = [];
+    if (patch.volume !== undefined) writes.push(mixer.volume.setValue(patch.volume));
+    if (patch.pan !== undefined) writes.push(mixer.panning.setValue(patch.pan));
+    for (const { param, value } of sendWrites) writes.push(param.setValue(value));
+    await Promise.all(writes);
   }
 
   async updateSong(patch: SongPatch): Promise<void> {
@@ -356,6 +439,22 @@ export class SdkAdapter implements LivePort {
       this.clipIds.forget(clip);
     }
     throw PortError.notFound("clip", id);
+  }
+
+  /**
+   * Re-walks the tracks' top-level device chains to locate the device and its
+   * owning track (the DeviceDetail needs a trackId); forgets it if gone.
+   * Matches how getTrack surfaces device IDs (top-level track.devices only).
+   */
+  private resolveDevice(id: DeviceId): { track: Track<V>; device: Device<V> } {
+    const device = this.deviceIds.resolve(id);
+    if (device) {
+      for (const track of this.song.tracks) {
+        if (track.devices.includes(device)) return { track, device };
+      }
+      this.deviceIds.forget(device);
+    }
+    throw PortError.notFound("device", id);
   }
 
   private slotAt(track: Track<V>, sceneIndex: number): ClipSlot<V> {
@@ -426,6 +525,35 @@ export class SdkAdapter implements LivePort {
     return clip instanceof AudioClip ? clip.filePath : undefined;
   }
 
+  private async deviceDetail(track: Track<V>, device: Device<V>): Promise<DeviceDetail> {
+    // Parameter metadata is sync; only the VALUES require an async round trip
+    // (docs/sdk-notes.md §7) — fetch them all in parallel.
+    const params = device.parameters;
+    const values = await Promise.all(params.map((p) => p.getValue()));
+    return {
+      id: this.deviceIds.idFor(device),
+      name: device.name,
+      trackId: this.trackIds.idFor(track),
+      params: params.map((param, i) => this.deviceParam(param, values[i])),
+    };
+  }
+
+  private deviceParam(param: DeviceParameter<V>, value: number): DeviceParam {
+    const valueItems = param.valueItems;
+    return {
+      name: param.name,
+      value,
+      min: param.min,
+      max: param.max,
+      quantized: param.isQuantized,
+      // valueItems are the discrete labels of quantized params; omit for
+      // continuous params (empty array), matching FakeLive's shape.
+      ...(valueItems.length > 0
+        ? { valueItems: valueItems.map((item) => item.name) }
+        : {}),
+    };
+  }
+
   private async mixerState(track: Track<V>): Promise<MixerState> {
     const mixer = track.mixer;
     const returns = this.song.returnTracks;
@@ -446,9 +574,5 @@ export class SdkAdapter implements LivePort {
       });
     }
     return { volume, pan, sends };
-  }
-
-  private unsupported(method: string): PortError {
-    return new PortError("UNSUPPORTED", `${method} not implemented yet`);
   }
 }
