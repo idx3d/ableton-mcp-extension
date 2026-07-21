@@ -19,14 +19,20 @@ extension are in progress (see `docs/plans/`).
 - What the Live API can and cannot do: [`docs/capability-map.md`](docs/capability-map.md)
 - Architecture decisions: [`docs/decisions/`](docs/decisions/)
 
-## Planned developer workflow
+## Developer workflow
+
+Two tiers, depending on whether you have the Ableton Extensions SDK installed
+(see [CONTRIBUTING.md](CONTRIBUTING.md) for the full breakdown):
 
 ```sh
-npm run dev:fake   # run the MCP server standalone against an in-memory fake Live
-npm start          # build + run inside real Ableton Live (Developer Mode)
-npm test           # unit + component tests (no Ableton required)
-npm run lint       # eslint + architecture boundary check
-npm run package    # bundle + produce the installable .ablx
+# No Ableton / SDK required — this is what CI runs:
+npm ci
+npm test              # unit + component tests
+npm run dev:fake      # MCP server standalone against an in-memory fake Live
+
+# Extension development (needs `npm run setup:sdk` first — see CONTRIBUTING.md):
+npm start              # bundle + run inside real Ableton Live (Developer Mode)
+npm run package        # bundle + produce the installable .ablx
 ```
 
 ## License
