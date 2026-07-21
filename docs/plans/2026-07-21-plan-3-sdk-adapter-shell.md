@@ -24,11 +24,13 @@ All prior constraints remain (boundaries via lint, labeled transact per write �
 ### Task 1: Local SDK setup + CI isolation
 
 **Files:**
+
 - Modify: `package.json` (scripts), `tsconfig.json` (exclude sdk-1.0), `.gitignore`, `scripts/check-boundaries.mjs`
 - Create: `tsconfig.sdk.json`
 - Test: verification commands below (no new test files)
 
 **Interfaces:**
+
 - Consumes: `references/extensions-sdk-1.0.0-beta.0/*.tgz` (present locally).
 - Produces: `npm run setup:sdk` (installs sdk+cli locally, no package.json change); `npm run typecheck` excludes `src/adapters/sdk-1.0/sdk-adapter.ts` and `src/shell/`+`src/extension.ts`; `npm run typecheck:sdk` includes everything; boundary script updated. CI stays green without the SDK.
 
@@ -68,16 +70,16 @@ docs/sdk-notes.md
 Change the SDK-import rule: the check currently flags `@ableton-extensions/*` imports outside `adapters/sdk-*`. Extend the allowlist so files under `adapters/sdk-`, `shell/`, or the file `extension.ts` are permitted:
 
 ```js
-    if (
-      spec.startsWith("@ableton-extensions/") &&
-      !inSdkAdapter &&
-      layer !== "shell" &&
-      rel !== "extension.ts"
-    ) {
-      violations.push(
-        `${rel}: imports ${spec} (only src/adapters/sdk-*, src/shell/, src/extension.ts may)`,
-      );
-    }
+if (
+  spec.startsWith("@ableton-extensions/") &&
+  !inSdkAdapter &&
+  layer !== "shell" &&
+  rel !== "extension.ts"
+) {
+  violations.push(
+    `${rel}: imports ${spec} (only src/adapters/sdk-*, src/shell/, src/extension.ts may)`,
+  );
+}
 ```
 
 Also add a rule: `mcp/`, `domain/`, `port/`, `adapters/fake/` must not import `shell/` (keep the shell an outer ring): for those layers flag relative imports resolving to `shell/`.
@@ -101,9 +103,11 @@ git commit -m "chore: local-only SDK setup with CI isolation and boundary update
 ### Task 2: Async-reads port migration
 
 **Files:**
+
 - Modify: `src/port/live-port.ts` (4 read signatures), `src/adapters/fake/fake-live.ts`, all of `src/domain/*.ts`, `src/mcp/tools/*.ts`, and every test that calls reads directly.
 
 **Interfaces:**
+
 - Consumes: everything existing.
 - Produces: `getSet()/getTrack()/getClip()/getDevice()` return `Promise<...>` on `LivePort`, `FakeLive`, and `SetInspector`. Domain fail-fast reads become `await`ed. Tool handlers `await` inspector calls. **No behavioral change** — every test keeps its assertions, only adding `await`/`async` where reads are consumed.
 
@@ -145,10 +149,12 @@ git commit -m "refactor: async LivePort reads (SDK device params require async a
 ### Task 3: Adapter pure modules — codecs + ID registry (CI-covered)
 
 **Files:**
+
 - Create: `src/adapters/sdk-1.0/codec.ts`, `src/adapters/sdk-1.0/id-registry.ts`
 - Test: `test/unit/adapters/sdk-codec.test.ts`, `test/unit/adapters/id-registry.test.ts`
 
 **Interfaces:**
+
 - Consumes: port types ONLY (these files must NOT import `@ableton-extensions/sdk` — they stay in CI).
 - Produces (used by Task 4-5):
   - `codec.ts`: `interface SdkNote { pitch: number; startTime: number; duration: number; velocity?: number; muted?: boolean; probability?: number; velocityDeviation?: number; releaseVelocity?: number }` (structurally matches the SDK's `NoteDescription` — kept local so this file needs no SDK import); `noteToSdk(note: Note): SdkNote`; `noteFromSdk(sdk: SdkNote): Note` (extras only when non-default: probability≠1 → `prob`, velocityDeviation≠0 → `velDev`, muted=true → `muted`, releaseVelocity≠64 → `relVel`); `colorToHex(n: number): string` (`#RRGGBB`, uppercase, masked to 24 bits); `colorFromHex(hex: string): number`.
@@ -290,7 +296,8 @@ export function noteToSdk(note: Note): SdkNote {
 
 export function noteFromSdk(sdk: SdkNote): Note {
   const extras: NoteExtras = {};
-  if (sdk.probability !== undefined && sdk.probability !== 1) extras.prob = sdk.probability;
+  if (sdk.probability !== undefined && sdk.probability !== 1)
+    extras.prob = sdk.probability;
   if (sdk.velocityDeviation !== undefined && sdk.velocityDeviation !== 0)
     extras.velDev = sdk.velocityDeviation;
   if (sdk.muted) extras.muted = true;
@@ -363,10 +370,12 @@ git commit -m "feat: SDK adapter pure modules - note/color codecs and ID registr
 ### Task 4: SdkAdapter — session, reads, core writes (local typecheck)
 
 **Files:**
+
 - Create: `src/adapters/sdk-1.0/sdk-adapter.ts`
 - Verify: `npm run typecheck:sdk` (requires `npm run setup:sdk` run first)
 
 **Interfaces:**
+
 - Consumes: `docs/sdk-notes.md` (authoritative signatures — READ IT FIRST and follow its exact API shapes; where this plan's code disagrees with sdk-notes, sdk-notes wins), codec + IdRegistry (Task 3), port types/errors.
 - Produces: `class SdkAdapter implements LivePort` covering: `getSet`, `getTrack`, `getClip`, `createTracks`, `updateTrack`, `deleteTracks`, `createScenes`, `updateScene`, `deleteScenes`, `createMidiClip`, `createAudioClip`, `updateClip`, `deleteClips`, `replaceClipNotes`, `updateSong`, `transact`. Device/mixer methods throw `UNSUPPORTED` until Task 5. Constructor: `constructor(private readonly context: ExtensionContext<"1.0.0">)`.
 
@@ -410,10 +419,12 @@ git commit -m "feat: SdkAdapter core - session graph, reads, track/scene/clip/no
 ### Task 5: SdkAdapter — devices and mixer
 
 **Files:**
+
 - Modify: `src/adapters/sdk-1.0/sdk-adapter.ts` (replace the UNSUPPORTED stubs)
 - Verify: `npm run typecheck:sdk`
 
 **Interfaces:**
+
 - Consumes: sdk-notes device/mixer sections; Task 4 internals.
 - Produces: `getDevice`, `insertDevice`, `setDeviceParams`, `deleteDevice`, `setMixer` on `SdkAdapter`.
 
@@ -438,10 +449,12 @@ git commit -m "feat: SdkAdapter devices and mixer via DeviceParameter get/setVal
 ### Task 6: Extension shell — activate, config, audit log, status dialog
 
 **Files:**
+
 - Create: `src/extension.ts`, `src/shell/config.ts`, `src/shell/audit-log.ts`, `src/shell/status-dialog.ts`, `manifest.json`
 - Test: `test/unit/shell/audit-log.test.ts` (audit-log is SDK-free — CI-covered; put it in `src/shell/audit-log.ts` with NO SDK imports, taking a directory path)
 
 **Interfaces:**
+
 - Consumes: SdkAdapter, domain services, `createMcpServer`, `startHttpServer`, sdk-notes §ui/§environment/§commands/§entry.
 - Produces:
   - `manifest.json`: `{ "name": "Ableton MCP", "author": "Denys Lieukhyn", "entry": "dist/extension.js", "version": "0.1.0", "minimumApiVersion": "1.0.0" }`
@@ -464,10 +477,12 @@ git commit -m "feat: extension shell - activate, persisted config/token, audit l
 ### Task 7: Build and packaging
 
 **Files:**
+
 - Create: `build.ts`
 - Modify: `package.json` (scripts + esbuild devDep), `README.md`, `CONTRIBUTING.md`, `.gitignore` (dist/ already ignored — verify)
 
 **Interfaces:**
+
 - Produces: `npm run build` (esbuild → `dist/extension.js`, CJS, platform node, bundled incl. SDK), `npm run start` (build + `extensions-cli run .`), `npm run package` (build + `extensions-cli package . -o dist/`) → `dist/Ableton MCP-0.1.0.ablx`. All local-only (need `setup:sdk`); CI does NOT run them.
 
 - [ ] **Step 1: Install esbuild + tsx already present**
@@ -524,16 +539,19 @@ git commit -m "feat: esbuild bundle and .ablx packaging scripts (local-only)"
 ### Task 8: Self-test smoke commands + runbook + docs closure
 
 **Files:**
+
 - Create: `src/shell/self-test.ts`, `docs/smoke-runbook.md`
 - Modify: `src/shell/status-dialog.ts` + `src/extension.ts` (trigger self-test from the dialog), `docs/capability-map.md`, `README.md`
 
 **Interfaces:**
+
 - Consumes: domain services over the real SdkAdapter; `ui.withinProgressDialog`; both component scenarios as the script source.
 - Produces: an in-Live self-test runner + a human runbook. Execution deferred until Live beta is installed.
 
 - [ ] **Step 1: Write src/shell/self-test.ts**
 
 A `runSelfTest(deps: ToolDeps, report: (line: string) => void): Promise<{ passed: number; failed: number; failures: string[] }>` that replays, against the REAL adapter, the union of the component scenarios (steps, not vitest): build-a-beat (tracks, scenes, tempo, MIDI clips with exact note round-trip), edit-existing-set (filter thinning, rename/color, scene ops), sound-design (insert Reverb, set params, batch mixer), plus contract checks pinning FakeLive-vs-Live semantics: occupied slot → CONFLICT, MIDI clip on audio track → INVALID_INPUT, stale ID after delete → NOT_FOUND, audio clip note edit → INVALID_INPUT, color round-trip (`update_clip` `#FF5500` → `get_clip` returns same hex — the flagged color-mapping verification). Each step: try/catch, compare, `report()` a ✓/✗ line, collect failures. **The self-test creates its own tracks/scenes and deletes everything it created at the end (in one final cleanup), leaving the user's set as found — plus every step ran through `transact`, so Live's undo history can also revert it.**
+
 - Wire into the status dialog: a "Run self-test" button (dialog returns `"selftest"` via `close_and_send`; extension.ts then runs it inside `ui.withinProgressDialog`, streaming step lines via `update()`, writing the full report to `storageDirectory/logs/selftest-<n>.log`, and showing pass/fail in a final dialog).
 
 - [ ] **Step 2: Write docs/smoke-runbook.md** (tracked — our own text): prerequisites (Live beta with Extension Host, Developer Mode on, SDK tarballs in `references/`), setup (`npm ci && npm run setup:sdk`), dev run (`npm run start`), how to open the status dialog and run the self-test, expected results (N steps green), where logs live (`storageDirectory/logs/`, `ExtensionHost.txt` paths for macOS/Windows), the release checklist (self-test green on macOS + Windows before tagging), and the deferred verification list (color mapping, audio clip length semantics, transact atomicity).
