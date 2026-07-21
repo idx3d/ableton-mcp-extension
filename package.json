@@ -20,7 +20,7 @@
     "build": "tsx build.ts",
     "build:dev": "tsx build.ts --dev",
     "start": "npm run build:dev && extensions-cli run .",
-    "package": "npm run build && extensions-cli package . -o \"dist/$(node -p \"require('./manifest.json').name + '-' + require('./manifest.json').version + '.ablx'\")\" -i dist/package.json"
+    "package": "npm run build && node scripts/package-ablx.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
