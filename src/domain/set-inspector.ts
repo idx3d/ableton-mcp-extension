@@ -12,19 +12,19 @@ import type {
 export class SetInspector {
   constructor(private readonly live: LivePort) {}
 
-  getSet(): SetSnapshot {
+  async getSet(): Promise<SetSnapshot> {
     return this.live.getSet();
   }
 
-  getTrack(id: TrackId): TrackDetail {
+  async getTrack(id: TrackId): Promise<TrackDetail> {
     return this.live.getTrack(id);
   }
 
-  getClip(id: ClipId): ClipDetail {
+  async getClip(id: ClipId): Promise<ClipDetail> {
     return this.live.getClip(id);
   }
 
-  getDevice(id: DeviceId): DeviceDetail {
+  async getDevice(id: DeviceId): Promise<DeviceDetail> {
     return this.live.getDevice(id);
   }
 }

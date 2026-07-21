@@ -28,9 +28,9 @@ describe("TrackService scenes", () => {
     await expect(tracks.deleteScenes(["s1", "s9"])).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
-    expect(fake.getSet().scenes).toHaveLength(2);
+    expect((await fake.getSet()).scenes).toHaveLength(2);
     await tracks.deleteScenes(["s1", "s2"]);
-    expect(fake.getSet().scenes).toEqual([]);
+    expect((await fake.getSet()).scenes).toEqual([]);
     expect(fake.undoSteps).toEqual(["delete_scenes"]);
     await expect(tracks.deleteScenes([])).rejects.toMatchObject({
       code: "INVALID_INPUT",

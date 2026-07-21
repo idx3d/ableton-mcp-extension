@@ -17,8 +17,8 @@ describe("MixerService", () => {
       { trackId: "t1", volume: 0.6, sends: [{ returnId: "r1", value: 0.3 }] },
       { trackId: "t2", pan: 0.5 },
     ]);
-    expect(fake.getTrack("t1").mixer.volume).toBe(0.6);
-    expect(fake.getTrack("t2").mixer.pan).toBe(0.5);
+    expect((await fake.getTrack("t1")).mixer.volume).toBe(0.6);
+    expect((await fake.getTrack("t2")).mixer.pan).toBe(0.5);
     expect(fake.undoSteps).toEqual(["set_mixer"]);
   });
 
@@ -29,7 +29,7 @@ describe("MixerService", () => {
         { trackId: "t99", volume: 0.1 },
       ]),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(fake.getTrack("t1").mixer.volume).toBe(0.85);
+    expect((await fake.getTrack("t1")).mixer.volume).toBe(0.85);
     expect(fake.undoSteps).toEqual([]);
   });
 

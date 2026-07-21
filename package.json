@@ -14,7 +14,13 @@
     "lint": "eslint . && node scripts/check-boundaries.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "gen:tools": "tsx scripts/gen-tools-md.ts"
+    "gen:tools": "tsx scripts/gen-tools-md.ts",
+    "setup:sdk": "npm install --no-save file:references/extensions-sdk-1.0.0-beta.0/ableton-extensions-sdk-1.0.0-beta.0.tgz file:references/extensions-sdk-1.0.0-beta.0/ableton-extensions-cli-1.0.0-beta.0.tgz",
+    "typecheck:sdk": "tsc --noEmit -p tsconfig.sdk.json",
+    "build": "tsx build.ts",
+    "build:dev": "tsx build.ts --dev",
+    "start": "npm run build:dev && extensions-cli run .",
+    "package": "npm run build && node scripts/package-ablx.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -22,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
+    "esbuild": "^0.28.1",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.5",

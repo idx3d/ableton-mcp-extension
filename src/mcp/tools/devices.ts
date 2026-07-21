@@ -9,7 +9,7 @@ export const deviceTools: ToolDef[] = [
       "and quantized value labels. Use the deviceId from get_track or insert_device.",
     inputSchema: { deviceId: z.string() },
     handler: async (args, deps) => ({
-      device: deps.inspector.getDevice(args.deviceId as string),
+      device: await deps.inspector.getDevice(args.deviceId as string),
     }),
   },
   {

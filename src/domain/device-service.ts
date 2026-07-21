@@ -10,7 +10,7 @@ export class DeviceService {
     deviceName: string,
     index?: number,
   ): Promise<DeviceDetail> {
-    this.live.getTrack(trackId); // fail fast on stale ID
+    await this.live.getTrack(trackId); // fail fast on stale ID
     return this.live.transact("insert_device", () =>
       this.live.insertDevice(trackId, deviceName, index),
     );
@@ -27,7 +27,7 @@ export class DeviceService {
         "Provide at least one parameter name/value pair (see get_device for names).",
       );
     }
-    this.live.getDevice(deviceId); // fail fast on stale ID
+    await this.live.getDevice(deviceId); // fail fast on stale ID
     await this.live.transact("set_device_params", () =>
       this.live.setDeviceParams(deviceId, params),
     );
@@ -35,7 +35,7 @@ export class DeviceService {
   }
 
   async deleteDevice(deviceId: DeviceId): Promise<void> {
-    this.live.getDevice(deviceId); // fail fast on stale ID
+    await this.live.getDevice(deviceId); // fail fast on stale ID
     return this.live.transact("delete_device", () => this.live.deleteDevice(deviceId));
   }
 }

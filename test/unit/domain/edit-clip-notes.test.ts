@@ -29,7 +29,7 @@ describe("ClipEditor.editClipNotes", () => {
       remove: true,
     });
     expect(result.noteCount).toBe(2);
-    expect(fake.getClip(clipId).notes.map((n) => n[0])).toEqual([36, 60]);
+    expect((await fake.getClip(clipId)).notes.map((n) => n[0])).toEqual([36, 60]);
     expect(fake.undoSteps).toEqual(["edit_clip_notes"]);
   });
 
@@ -38,7 +38,7 @@ describe("ClipEditor.editClipNotes", () => {
       select: { startBeat: 0.5, endBeat: 2 },
       transform: { transpose: 12, velocityDelta: -10 },
     });
-    expect(fake.getClip(clipId).notes).toEqual([
+    expect((await fake.getClip(clipId)).notes).toEqual([
       [36, 0, 0.5, 100],
       [54, 0.5, 0.25, 50],
       [54, 1.5, 0.25, 50],
@@ -51,7 +51,7 @@ describe("ClipEditor.editClipNotes", () => {
       select: { pitchMin: 60 },
       transform: { transpose: 100, velocityDelta: 100, shiftBeats: -10 },
     });
-    const keys = fake.getClip(clipId).notes.find((n) => n[0] === 127);
+    const keys = (await fake.getClip(clipId)).notes.find((n) => n[0] === 127);
     expect(keys).toEqual([127, 0, 1, 127]);
   });
 
@@ -80,6 +80,8 @@ describe("ClipEditor.editClipNotes", () => {
   it("preserves note extras through transforms", async () => {
     await fake.replaceClipNotes(clipId, [[42, 0, 0.25, 60, { prob: 0.7 }]]);
     await clips.editClipNotes(clipId, { transform: { transpose: 1 } });
-    expect(fake.getClip(clipId).notes).toEqual([[43, 0, 0.25, 60, { prob: 0.7 }]]);
+    expect((await fake.getClip(clipId)).notes).toEqual([
+      [43, 0, 0.25, 60, { prob: 0.7 }],
+    ]);
   });
 });

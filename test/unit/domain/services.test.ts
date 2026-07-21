@@ -74,7 +74,7 @@ describe("services undo policy", () => {
     await expect(tracks.deleteTracks(["t1", "t99"])).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
-    expect(fake.getSet().tracks).toHaveLength(2);
+    expect((await fake.getSet()).tracks).toHaveLength(2);
     expect(fake.undoSteps).toEqual(["create_tracks"]);
   });
 
@@ -99,7 +99,7 @@ describe("services undo policy", () => {
         notes: [[200, 0, 1, 100]],
       }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    expect(fake.getTrack("t1").slots[0].clip).toBeNull();
+    expect((await fake.getTrack("t1")).slots[0].clip).toBeNull();
   });
 
   it("rejects out-of-range tempo", async () => {

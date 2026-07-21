@@ -95,12 +95,12 @@ export class ClipEditor {
   }
 
   async replaceClipNotes(clipId: ClipId, notes: Note[]): Promise<ClipDetail> {
-    this.live.getClip(clipId); // fail fast on stale ID
+    await this.live.getClip(clipId); // fail fast on stale ID
     validateNotes(notes);
     await this.live.transact("replace_clip_notes", () =>
       this.live.replaceClipNotes(clipId, notes),
     );
-    return this.live.getClip(clipId);
+    return await this.live.getClip(clipId);
   }
 
   async createAudioClip(input: CreateAudioClipInput): Promise<ClipDetail> {
@@ -127,21 +127,21 @@ export class ClipEditor {
         'Use "#RRGGBB", e.g. "#FF5500".',
       );
     }
-    this.live.getClip(clipId); // fail fast on stale ID
+    await this.live.getClip(clipId); // fail fast on stale ID
     await this.live.transact("update_clip", () => this.live.updateClip(clipId, patch));
-    return this.live.getClip(clipId);
+    return await this.live.getClip(clipId);
   }
 
   async deleteClips(ids: ClipId[]): Promise<void> {
     if (ids.length === 0) {
       throw new PortError("INVALID_INPUT", "ids must not be empty");
     }
-    for (const id of ids) this.live.getClip(id); // all-or-nothing
+    for (const id of ids) await this.live.getClip(id); // all-or-nothing
     return this.live.transact("delete_clips", () => this.live.deleteClips(ids));
   }
 
   async editClipNotes(clipId: ClipId, edit: ClipNotesEdit): Promise<ClipDetail> {
-    const clip = this.live.getClip(clipId); // fail fast on stale ID
+    const clip = await this.live.getClip(clipId); // fail fast on stale ID
     if (clip.kind !== "midi") {
       throw new PortError(
         "INVALID_INPUT",
@@ -182,6 +182,6 @@ export class ClipEditor {
     await this.live.transact("edit_clip_notes", () =>
       this.live.replaceClipNotes(clipId, notes),
     );
-    return this.live.getClip(clipId);
+    return await this.live.getClip(clipId);
   }
 }

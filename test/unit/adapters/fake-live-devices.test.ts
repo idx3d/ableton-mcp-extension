@@ -8,15 +8,15 @@ describe("FakeLive device/mixer reads", () => {
     await fake.createTracks([{ type: "midi", name: "Drums" }]);
   });
 
-  it("seeds two default return tracks", () => {
-    expect(fake.getSet().returnTracks).toEqual([
+  it("seeds two default return tracks", async () => {
+    expect((await fake.getSet()).returnTracks).toEqual([
       { id: "r1", name: "A-Reverb" },
       { id: "r2", name: "B-Delay" },
     ]);
   });
 
-  it("tracks start with an empty device chain and default mixer", () => {
-    const track = fake.getTrack("t1");
+  it("tracks start with an empty device chain and default mixer", async () => {
+    const track = await fake.getTrack("t1");
     expect(track.devices).toEqual([]);
     expect(track.deviceNames).toEqual([]);
     expect(track.mixer).toEqual({
@@ -29,9 +29,7 @@ describe("FakeLive device/mixer reads", () => {
     });
   });
 
-  it("getDevice on an unknown ID throws NOT_FOUND", () => {
-    expect(() => fake.getDevice("d1")).toThrowError(
-      expect.objectContaining({ code: "NOT_FOUND" }),
-    );
+  it("getDevice on an unknown ID throws NOT_FOUND", async () => {
+    await expect(fake.getDevice("d1")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

@@ -115,7 +115,7 @@ export class FakeLive implements LivePort {
 
   // -- reads ----------------------------------------------------------------
 
-  getSet(): SetSnapshot {
+  async getSet(): Promise<SetSnapshot> {
     return {
       tempo: this.tempo,
       scaleName: this.scaleName,
@@ -126,7 +126,7 @@ export class FakeLive implements LivePort {
     };
   }
 
-  getTrack(id: TrackId): TrackDetail {
+  async getTrack(id: TrackId): Promise<TrackDetail> {
     const track = this.requireTrack(id);
     return {
       ...this.summarize(track),
@@ -139,7 +139,7 @@ export class FakeLive implements LivePort {
     };
   }
 
-  getClip(id: ClipId): ClipDetail {
+  async getClip(id: ClipId): Promise<ClipDetail> {
     const found = this.findClip(id);
     if (!found) throw PortError.notFound("clip", id);
     const { track, sceneId, clip } = found;
@@ -152,7 +152,7 @@ export class FakeLive implements LivePort {
     };
   }
 
-  getDevice(id: DeviceId): DeviceDetail {
+  async getDevice(id: DeviceId): Promise<DeviceDetail> {
     const found = this.findDevice(id);
     if (!found) throw PortError.notFound("device", id);
     return {
@@ -247,7 +247,7 @@ export class FakeLive implements LivePort {
       notes: this.cloneNotes(notes),
     };
     track.clips.set(sceneId, clip);
-    return this.getClip(clip.id);
+    return await this.getClip(clip.id);
   }
 
   async replaceClipNotes(id: ClipId, notes: Note[]): Promise<void> {
@@ -293,7 +293,7 @@ export class FakeLive implements LivePort {
       })),
     };
     track.devices.splice(at, 0, device);
-    return this.getDevice(device.id);
+    return await this.getDevice(device.id);
   }
 
   async setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void> {
@@ -384,7 +384,7 @@ export class FakeLive implements LivePort {
       notes: [],
     };
     track.clips.set(sceneId, clip);
-    return this.getClip(clip.id);
+    return await this.getClip(clip.id);
   }
 
   async updateClip(id: ClipId, patch: ClipPatch): Promise<void> {
