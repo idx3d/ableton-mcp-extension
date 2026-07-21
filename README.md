@@ -10,10 +10,13 @@ open and listens on `localhost` (Streamable HTTP, token-protected).
 
 ## Status
 
-**Foundation phase.** The MCP server core (21 tools — see
-[docs/tools.md](docs/tools.md)) runs against an in-memory FakeLive — try it
-with `npm run dev:fake`. The real Ableton adapter and the installable
-extension are in progress (see `docs/plans/`).
+**Extension complete; in-Live validation pending.** The MCP server core (21
+tools — see [docs/tools.md](docs/tools.md)) runs against an in-memory FakeLive —
+try it with `npm run dev:fake`. The real Ableton adapter, the composition-root
+extension shell, and the packaging pipeline are all implemented: the extension
+**builds and packages to a `.ablx`**. What remains is **in-Live validation** —
+running the built-in self-test inside a Live beta install — which is the release
+gate for `v0.1.0`. See [docs/smoke-runbook.md](docs/smoke-runbook.md).
 
 - Design spec: [`docs/specs/2026-07-19-ableton-mcp-extension-design.md`](docs/specs/2026-07-19-ableton-mcp-extension-design.md)
 - What the Live API can and cannot do: [`docs/capability-map.md`](docs/capability-map.md)

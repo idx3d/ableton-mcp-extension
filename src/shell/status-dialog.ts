@@ -145,3 +145,84 @@ export function buildStatusDialogUrl(data: StatusDialogData): string {
 
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
+
+export interface SelfTestSummary {
+  passed: number;
+  failed: number;
+  failures: string[];
+}
+
+/**
+ * Builds the modal shown after the self-test finishes: a pass/fail headline,
+ * the counts, and the list of failure lines (if any). Same `data:` URL / Close
+ * button contract as the status dialog above. Pure and SDK-free.
+ */
+export function buildSelfTestResultUrl(summary: SelfTestSummary): string {
+  const ok = summary.failed === 0;
+  const headline = ok ? "All checks passed" : "Self-test found failures";
+  const failuresHtml =
+    summary.failures.length === 0
+      ? ""
+      : `<div class="field">
+    <div class="label">Failures</div>
+    <ul class="fails">${summary.failures
+      .map((f) => `<li>${escapeHtml(f)}</li>`)
+      .join("")}</ul>
+  </div>`;
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ableton MCP — Self-test</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font: 13px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    margin: 0; padding: 20px; color: #e6e6e6; background: #1f1f1f;
+  }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  h1.ok { color: #57c974; }
+  h1.err { color: #e2725b; }
+  .sub { color: #9a9a9a; margin: 0 0 16px; }
+  .field { margin-bottom: 14px; }
+  .label { color: #9a9a9a; text-transform: uppercase; font-size: 10px; letter-spacing: .06em; margin-bottom: 4px; }
+  .fails { margin: 0; padding-left: 18px; }
+  .fails li { color: #e2725b; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; margin-bottom: 4px; }
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  button {
+    font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid #444;
+    background: #2c2c2c; color: #e6e6e6; cursor: pointer;
+  }
+  button.primary { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
+  button:hover { filter: brightness(1.1); }
+</style>
+</head>
+<body>
+  <h1 class="${ok ? "ok" : "err"}">${escapeHtml(headline)}</h1>
+  <p class="sub">${summary.passed} passed · ${summary.failed} failed</p>
+  ${failuresHtml}
+  <div class="actions">
+    <button class="primary" onclick="send('close')">Close</button>
+  </div>
+  <script>
+    function send(action) {
+      var msg = { method: "close_and_send", params: [action] };
+      try {
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.live) {
+          window.webkit.messageHandlers.live.postMessage(msg); // macOS
+        } else if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage(msg); // Windows
+        }
+      } catch (err) {
+        console.error("postMessage failed", err);
+      }
+    }
+  </script>
+</body>
+</html>`;
+
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}

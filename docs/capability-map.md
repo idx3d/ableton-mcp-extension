@@ -36,6 +36,15 @@ playbook in the design spec).
 - **Explicit SDK non-goals**: real-time audio, MIDI routing, drawing into Live's UI,
   background/persistent extensions, control surfaces.
 
+## Runtime status
+
+The full **21-tool v1 surface is implemented** (see the exposure table below) and
+green in CI against FakeLive. **In-Live validation is pending** the Live beta
+install: an in-Live self-test runner (`src/shell/self-test.ts`) replays the
+component scenarios plus the FakeLive-vs-Live contract checks against the real SDK
+adapter — run it via the status dialog's "Run self-test" button. See
+[`smoke-runbook.md`](smoke-runbook.md) for the procedure and the release gate.
+
 ## MCP exposure status
 
 | Capability                              | MCP tool(s)                                                         | Status           |

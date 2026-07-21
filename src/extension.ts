@@ -7,7 +7,12 @@
  * Excluded from the CI typecheck (tsconfig.json); verified by
  * `npm run typecheck:sdk` after `npm run setup:sdk`.
  */
-import { initialize, type ActivationContext } from "@ableton-extensions/sdk";
+import {
+  initialize,
+  type ActivationContext,
+  type ExtensionContext,
+} from "@ableton-extensions/sdk";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SdkAdapter } from "./adapters/sdk-1.0/sdk-adapter.js";
@@ -20,9 +25,10 @@ import { TrackService } from "./domain/track-service.js";
 import { startHttpServer } from "./mcp/http.js";
 import { createMcpServer } from "./mcp/server.js";
 import type { ToolDeps } from "./mcp/tools/types.js";
+import { runSelfTest, type SelfTestResult } from "./shell/self-test.js";
 import { AuditLog } from "./shell/audit-log.js";
 import { loadOrCreateConfig } from "./shell/config.js";
-import { buildStatusDialogUrl } from "./shell/status-dialog.js";
+import { buildSelfTestResultUrl, buildStatusDialogUrl } from "./shell/status-dialog.js";
 
 const COMMAND_ID = "ableton-mcp.show-status";
 const CONTEXT_MENU_TITLE = "Ableton MCP: Status…";
@@ -88,9 +94,7 @@ export async function activate(activation: ActivationContext): Promise<void> {
             DIALOG_HEIGHT,
           );
           if (result === "selftest") {
-            // TODO(Task 8): run the contract self-test suite against the
-            // running server and report the outcome. No-op for now.
-            console.log("[ableton-mcp] self-test requested (not yet implemented)");
+            await runSelfTestFlow(context, deps, storageDir);
           }
         } catch (err) {
           console.error("[ableton-mcp] status dialog error:", err);
@@ -104,4 +108,47 @@ export async function activate(activation: ActivationContext): Promise<void> {
   } catch (err) {
     console.error("[ableton-mcp] activation failed:", err);
   }
+}
+
+/**
+ * Runs the in-Live self-test inside a progress dialog, streaming each result
+ * line to the dialog as it happens, writing the full transcript to
+ * `<storageDir>/logs/selftest-<timestamp>.log`, and showing a pass/fail
+ * summary modal at the end.
+ */
+async function runSelfTestFlow(
+  context: ExtensionContext<"1.0.0">,
+  deps: ToolDeps,
+  storageDir: string,
+): Promise<void> {
+  const transcript: string[] = [];
+
+  const result = (await context.ui.withinProgressDialog(
+    "Running Ableton MCP self-test…",
+    { progress: 0 },
+    async (update) =>
+      runSelfTest(deps, (line) => {
+        transcript.push(line);
+        // Fire-and-forget: report() is synchronous, so stream without awaiting.
+        void update(line);
+      }),
+  )) as SelfTestResult;
+
+  try {
+    const logDir = join(storageDir, "logs");
+    mkdirSync(logDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const logPath = join(logDir, `selftest-${stamp}.log`);
+    const header = `Ableton MCP self-test — ${result.passed} passed, ${result.failed} failed`;
+    writeFileSync(logPath, `${header}\n\n${transcript.join("\n")}\n`, "utf8");
+    console.log(`[ableton-mcp] self-test log written to ${logPath}`);
+  } catch (err) {
+    console.error("[ableton-mcp] failed to write self-test log:", err);
+  }
+
+  await context.ui.showModalDialog(
+    buildSelfTestResultUrl(result),
+    DIALOG_WIDTH,
+    DIALOG_HEIGHT,
+  );
 }
