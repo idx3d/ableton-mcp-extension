@@ -117,6 +117,9 @@ export class SdkAdapter implements LivePort {
   async getClip(id: ClipId): Promise<ClipDetail> {
     const { track, sceneIndex, clip } = this.resolveClip(id);
     const scene = this.song.scenes[sceneIndex];
+    if (!scene) {
+      throw new PortError("INTERNAL", `clip ${id} scene index out of range`);
+    }
     const filePath = this.clipFilePath(clip);
     return {
       ...this.summarizeClip(clip),
