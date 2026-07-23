@@ -21,7 +21,7 @@ esbuild bundling, vitest.
 - **SDK quarantine:** no file here may import `@ableton-extensions/*` except
   `src/extension.ts` (already exempt). `scripts/check-boundaries.mjs` enforces this and
   runs in `npm run lint` — the new `src/bridge/` layer is auto-covered.
-- **stdout is the MCP channel:** the bridge and its CLI must send *all* diagnostics to
+- **stdout is the MCP channel:** the bridge and its CLI must send _all_ diagnostics to
   **stderr** (`console.error`), never stdout.
 - **Node ≥ 24**, `"type": "module"`; the bridge bundle is emitted as CJS
   (`dist/bridge.cjs`); `dist/package.json` already pins `{ "type": "commonjs" }`.
@@ -35,10 +35,12 @@ esbuild bundling, vitest.
 ### Task 1: Connection-file module (shell↔bridge contract)
 
 **Files:**
+
 - Create: `src/shell/connection-file.ts`
 - Test: `test/unit/shell/connection-file.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing (SDK-free; `node:fs`/`node:os`/`node:path` only).
 - Produces:
   - `interface ConnectionInfo { url: string; token: string; updatedAt?: string }`
@@ -212,10 +214,12 @@ git commit -m "feat: connection-file discovery contract for the stdio bridge"
 ### Task 2: `resolveConnection` — env-then-file precedence
 
 **Files:**
+
 - Create: `src/bridge/bridge.ts` (this task adds `resolveConnection`; Task 3 adds `runBridge`)
 - Test: `test/unit/bridge/resolve-connection.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ConnectionInfo`, `readConnectionFile` from `src/shell/connection-file.ts`.
 - Produces:
   - `interface Connection { url: string; token: string }`
@@ -240,20 +244,26 @@ describe("resolveConnection", () => {
   });
 
   it("builds the URL from ABLETON_MCP_PORT + token", () => {
-    const c = resolveConnection({ ABLETON_MCP_PORT: "20999", ABLETON_MCP_TOKEN: "t" }, () => undefined);
+    const c = resolveConnection(
+      { ABLETON_MCP_PORT: "20999", ABLETON_MCP_TOKEN: "t" },
+      () => undefined,
+    );
     expect(c).toEqual({ url: "http://127.0.0.1:20999/mcp", token: "t" });
   });
 
   it("falls back to the connection file when env is absent", () => {
-    const c = resolveConnection({}, () => ({ url: "http://127.0.0.1:20808/mcp", token: "f" }));
+    const c = resolveConnection({}, () => ({
+      url: "http://127.0.0.1:20808/mcp",
+      token: "f",
+    }));
     expect(c).toEqual({ url: "http://127.0.0.1:20808/mcp", token: "f" });
   });
 
   it("ignores a lone URL without a token", () => {
-    const c = resolveConnection(
-      { ABLETON_MCP_URL: "http://x/mcp" },
-      () => ({ url: "http://file/mcp", token: "f" }),
-    );
+    const c = resolveConnection({ ABLETON_MCP_URL: "http://x/mcp" }, () => ({
+      url: "http://file/mcp",
+      token: "f",
+    }));
     expect(c.url).toBe("http://file/mcp");
   });
 
@@ -328,10 +338,12 @@ git commit -m "feat: resolveConnection env-then-file discovery for the bridge"
 ### Task 3: `runBridge` — the transport splice (component test vs FakeLive)
 
 **Files:**
+
 - Modify: `src/bridge/bridge.ts` (add `runBridge` + `RunningBridge`)
 - Test: `test/component/bridge.test.ts`
 
 **Interfaces:**
+
 - Consumes: `StdioServerTransport` from `@modelcontextprotocol/sdk/server/stdio.js`;
   `StreamableHTTPClientTransport` from `@modelcontextprotocol/sdk/client/streamableHttp.js`;
   `startHttpServer` / `createMcpServer` + FakeLive-backed domain services (test only).
@@ -517,11 +529,13 @@ git commit -m "feat: runBridge stdio<->HTTP transport splice"
 ### Task 4: CLI entry + build target + `bin` (buildable bridge)
 
 **Files:**
+
 - Create: `src/bridge/main.ts`
 - Modify: `build.ts` (add a second esbuild target)
 - Modify: `package.json` (add `bin`)
 
 **Interfaces:**
+
 - Consumes: `resolveConnection`, `runBridge` from `src/bridge/bridge.ts`.
 - Produces: `dist/bridge.cjs` (executable, shebanged); `ableton-mcp` bin entry.
 
@@ -592,6 +606,7 @@ npm run build:dev
 # (a) no connection -> exits non-zero with a hint on stderr, nothing on stdout:
 ABLETON_MCP_URL= ABLETON_MCP_TOKEN= node dist/bridge.cjs </dev/null; echo "exit=$?"
 ```
+
 Expected: a line containing `Ableton MCP: Status` on stderr; `exit=1`.
 
 ```bash
@@ -606,6 +621,7 @@ printf '%s\n%s\n%s\n' \
 # Expected: two JSON-RPC result lines on stdout; the id:2 line lists 21 tools.
 kill %1
 ```
+
 Expected: stdout shows the `initialize` result then a `tools/list` result whose
 `result.tools` has length 21.
 
@@ -622,9 +638,11 @@ git commit -m "feat: ableton-mcp bin — bridge CLI entry + esbuild target"
 ### Task 5: Extension writes the connection file on activation
 
 **Files:**
+
 - Modify: `src/extension.ts` (import + best-effort write after `startHttpServer`)
 
 **Interfaces:**
+
 - Consumes: `writeConnectionFile` from `src/shell/connection-file.ts`;
   `server.url` + `config.token` already in scope at the call site.
 - Produces: a `connection.json` on disk whenever the extension activates.
@@ -643,14 +661,14 @@ In `src/extension.ts`, immediately after the existing
 `console.log(\`[ableton-mcp] MCP server running at ${server.url}\`);` line, add:
 
 ```ts
-    // Publish the effective URL + token to a fixed, externally-locatable path so
-    // the `ableton-mcp` stdio bridge can auto-discover them. Best-effort: a write
-    // failure must never crash activation.
-    try {
-      writeConnectionFile({ url: server.url, token: config.token });
-    } catch (err) {
-      console.error("[ableton-mcp] failed to write connection file:", err);
-    }
+// Publish the effective URL + token to a fixed, externally-locatable path so
+// the `ableton-mcp` stdio bridge can auto-discover them. Best-effort: a write
+// failure must never crash activation.
+try {
+  writeConnectionFile({ url: server.url, token: config.token });
+} catch (err) {
+  console.error("[ableton-mcp] failed to write connection file:", err);
+}
 ```
 
 - [ ] **Step 3: Verify the SDK-side typecheck**
@@ -677,6 +695,7 @@ git commit -m "feat: publish connection.json on activation for stdio-bridge disc
 ### Task 6: Documentation — ADR, capability map, README
 
 **Files:**
+
 - Create: `docs/decisions/0008-stdio-bridge.md`
 - Modify: `docs/capability-map.md`
 - Modify: `README.md`
@@ -743,7 +762,7 @@ fixed-path `connection.json` the extension writes on activation. See
 In `README.md`, under the existing connection/usage guidance (near the
 `claude mcp add --transport http …` instructions if present), add a subsection:
 
-```markdown
+````markdown
 ### Connecting a stdio-only MCP client
 
 Clients that speak only stdio (e.g. Claude Desktop) connect through the bundled
@@ -755,11 +774,13 @@ bridge. Build it once (`npm run build`), then point the client at:
   "args": ["/absolute/path/to/ableton-mcp-extension/dist/bridge.cjs"]
 }
 ```
+````
 
 The bridge auto-discovers the running extension's URL + token from
 `connection.json` (written on activation). To override, set `ABLETON_MCP_URL` (or
 `ABLETON_MCP_PORT`) and `ABLETON_MCP_TOKEN` in the client's `env`.
-```
+
+````
 
 - [ ] **Step 4: Format + commit**
 
@@ -767,13 +788,14 @@ The bridge auto-discovers the running extension's URL + token from
 npm run format
 git add docs/decisions/0008-stdio-bridge.md docs/capability-map.md README.md
 git commit -m "docs: ADR 0008 + capability map + README for the stdio bridge"
-```
+````
 
 ---
 
 ## Self-Review
 
 **Spec coverage:**
+
 - connection-file contract (path table, 0600, corrupt→undefined) → Task 1. ✓
 - `resolveConnection` env precedence + hint error → Task 2. ✓
 - `runBridge` transport splice + component test (21 tools, real tool call) → Task 3. ✓

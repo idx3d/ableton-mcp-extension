@@ -11,20 +11,26 @@ describe("resolveConnection", () => {
   });
 
   it("builds the URL from ABLETON_MCP_PORT + token", () => {
-    const c = resolveConnection({ ABLETON_MCP_PORT: "20999", ABLETON_MCP_TOKEN: "t" }, () => undefined);
+    const c = resolveConnection(
+      { ABLETON_MCP_PORT: "20999", ABLETON_MCP_TOKEN: "t" },
+      () => undefined,
+    );
     expect(c).toEqual({ url: "http://127.0.0.1:20999/mcp", token: "t" });
   });
 
   it("falls back to the connection file when env is absent", () => {
-    const c = resolveConnection({}, () => ({ url: "http://127.0.0.1:20808/mcp", token: "f" }));
+    const c = resolveConnection({}, () => ({
+      url: "http://127.0.0.1:20808/mcp",
+      token: "f",
+    }));
     expect(c).toEqual({ url: "http://127.0.0.1:20808/mcp", token: "f" });
   });
 
   it("ignores a lone URL without a token", () => {
-    const c = resolveConnection(
-      { ABLETON_MCP_URL: "http://x/mcp" },
-      () => ({ url: "http://file/mcp", token: "f" }),
-    );
+    const c = resolveConnection({ ABLETON_MCP_URL: "http://x/mcp" }, () => ({
+      url: "http://file/mcp",
+      token: "f",
+    }));
     expect(c.url).toBe("http://file/mcp");
   });
 

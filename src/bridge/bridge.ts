@@ -84,7 +84,9 @@ export async function runBridge(opts: {
   http.onmessage = (msg) =>
     void stdio
       .send(msg)
-      .catch((err) => console.error("[ableton-mcp bridge] forward-to-stdio failed:", err));
+      .catch((err) =>
+        console.error("[ableton-mcp bridge] forward-to-stdio failed:", err),
+      );
   stdio.onclose = () => void closeBoth();
   http.onclose = () => void closeBoth();
   stdio.onerror = (err) => console.error("[ableton-mcp bridge] stdio error:", err);

@@ -37,24 +37,28 @@ Two constraints shape the design:
 ### 1. `src/shell/connection-file.ts` — the discovery contract
 
 SDK-free (`node:os`/`node:path`/`node:fs` only). Shared by the writer (extension shell)
-and the reader (bridge); the connection file *is* the shell↔bridge contract.
+and the reader (bridge); the connection file _is_ the shell↔bridge contract.
 
 ```ts
-export interface ConnectionInfo { url: string; token: string; updatedAt?: string }
+export interface ConnectionInfo {
+  url: string;
+  token: string;
+  updatedAt?: string;
+}
 
 /** Fixed, OS-conventional path both sides agree on. */
-export function connectionFilePath(): string
-export function writeConnectionFile(info: { url: string; token: string }): void
-export function readConnectionFile(): ConnectionInfo | undefined
+export function connectionFilePath(): string;
+export function writeConnectionFile(info: { url: string; token: string }): void;
+export function readConnectionFile(): ConnectionInfo | undefined;
 ```
 
 Path resolution:
 
-| OS          | Path                                                                 |
-| ----------- | -------------------------------------------------------------------- |
-| macOS       | `~/Library/Application Support/ableton-mcp/connection.json`           |
-| Windows     | `%APPDATA%\ableton-mcp\connection.json`                              |
-| Linux/other | `${XDG_CONFIG_HOME:-~/.config}/ableton-mcp/connection.json`           |
+| OS          | Path                                                        |
+| ----------- | ----------------------------------------------------------- |
+| macOS       | `~/Library/Application Support/ableton-mcp/connection.json` |
+| Windows     | `%APPDATA%\ableton-mcp\connection.json`                     |
+| Linux/other | `${XDG_CONFIG_HOME:-~/.config}/ableton-mcp/connection.json` |
 
 - File shape: `{ "url": "http://127.0.0.1:20808/mcp", "token": "…", "updatedAt": "<iso>" }`.
 - Directory created recursively; file written with mode `0600` (it carries the bearer
@@ -62,42 +66,48 @@ Path resolution:
   (never throws).
 - This file is **separate from** `storageDir/config.json`. `config.json` remains the
   in-Live source of truth for `{port, token}`; the connection file is a derived,
-  externally-locatable copy of the *effective* URL + token.
+  externally-locatable copy of the _effective_ URL + token.
 
 ### 2. `src/bridge/` — the bridge
 
 **`bridge.ts`**
 
 ```ts
-export interface Connection { url: string; token: string }
+export interface Connection {
+  url: string;
+  token: string;
+}
 
 /** env overrides connection file; throws a structured error if neither resolves. */
-export function resolveConnection(env = process.env): Connection
+export function resolveConnection(env = process.env): Connection;
 
 /** Splices stdio ⇄ HTTP. Streams are injected for testability. */
 export async function runBridge(opts: {
-  url: string; token: string; stdin: Readable; stdout: Writable;
-}): Promise<{ close(): Promise<void> }>
+  url: string;
+  token: string;
+  stdin: Readable;
+  stdout: Writable;
+}): Promise<{ close(): Promise<void> }>;
 ```
 
 - `resolveConnection` precedence:
   1. `ABLETON_MCP_URL` + `ABLETON_MCP_TOKEN` (both required together), OR
   2. `ABLETON_MCP_PORT` + `ABLETON_MCP_TOKEN` → `http://127.0.0.1:<port>/mcp`, OR
   3. `readConnectionFile()`.
-  - None → throw a structured error carrying a recovery hint: *"No Ableton MCP
+  - None → throw a structured error carrying a recovery hint: _"No Ableton MCP
     connection found. Open Ableton Live → Session view → Scene right-click → 'Ableton
     MCP: Status…' to confirm the extension is running, or set ABLETON_MCP_URL /
-    ABLETON_MCP_TOKEN."*
+    ABLETON_MCP_TOKEN."_
 - `runBridge` wiring:
   ```ts
   const stdio = new StdioServerTransport(stdin, stdout);
-  const http  = new StreamableHTTPClientTransport(new URL(url), {
+  const http = new StreamableHTTPClientTransport(new URL(url), {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   });
   stdio.onmessage = (m) => void http.send(m);
-  http.onmessage  = (m) => void stdio.send(m);
+  http.onmessage = (m) => void stdio.send(m);
   stdio.onclose = () => void http.close();
-  http.onclose  = () => void stdio.close();
+  http.onclose = () => void stdio.close();
   stdio.onerror = http.onerror = (e) => console.error("[ableton-mcp bridge]", e);
   await http.start();
   await stdio.start();
@@ -148,7 +158,7 @@ try {
 - **Component — `test/component/bridge.test.ts`:** start a FakeLive-backed HTTP server
   on port 0 (reuse the `http-auth.test.ts` factory pattern); call `runBridge` with
   `PassThrough` stdin/stdout; write newline-delimited `initialize`, `notifications/
-  initialized`, `tools/list`, and one real `tools/call` (e.g. `get_set`) to stdin; parse
+initialized`, `tools/list`, and one real `tools/call` (e.g. `get_set`) to stdin; parse
   responses off stdout and assert the `initialize` result, **21** tools, and a valid
   tool result. Exercises real stdio framing + the HTTP splice end-to-end.
 - **Unit — `test/unit/shell/connection-file.test.ts`:** per-OS path (drive via injected
