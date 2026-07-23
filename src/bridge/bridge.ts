@@ -57,23 +57,49 @@ export async function runBridge(opts: {
     requestInit: { headers: { Authorization: `Bearer ${opts.token}` } },
   });
 
-  let closing = false;
-  const closeBoth = (): void => {
-    if (closing) return;
-    closing = true;
-    void http.close();
-    void stdio.close();
+  // NOTE: both transports' close() call onclose() SYNCHRONOUSLY before
+  // returning (verified in the installed SDK: StreamableHTTPClientTransport
+  // and StdioServerTransport both do `this.onclose?.()` with no preceding
+  // `await`). Since onclose is wired to closeBoth below, a naive
+  // `closing = Promise.allSettled([http.close(), stdio.close()])` would
+  // re-enter closeBoth from within that same expression's evaluation —
+  // before `closing` is assigned — recursing synchronously until the stack
+  // overflows. Deferring the actual close() calls into a microtask (via
+  // `Promise.resolve().then(...)`) guarantees `closing` is assigned first,
+  // so the re-entrant call sees the guard and short-circuits.
+  let closing: Promise<void> | undefined;
+  const closeBoth = (): Promise<void> => {
+    if (!closing) {
+      closing = Promise.resolve().then(async () => {
+        await Promise.allSettled([http.close(), stdio.close()]);
+      });
+    }
+    return closing;
   };
 
-  stdio.onmessage = (msg) => void http.send(msg);
-  http.onmessage = (msg) => void stdio.send(msg);
-  stdio.onclose = closeBoth;
-  http.onclose = closeBoth;
+  stdio.onmessage = (msg) =>
+    void http
+      .send(msg)
+      .catch((err) => console.error("[ableton-mcp bridge] forward-to-http failed:", err));
+  http.onmessage = (msg) =>
+    void stdio
+      .send(msg)
+      .catch((err) => console.error("[ableton-mcp bridge] forward-to-stdio failed:", err));
+  stdio.onclose = () => void closeBoth();
+  http.onclose = () => void closeBoth();
   stdio.onerror = (err) => console.error("[ableton-mcp bridge] stdio error:", err);
-  http.onerror = (err) => console.error("[ableton-mcp bridge] http error:", err);
+  http.onerror = (err) => {
+    if (closing || (err as { name?: string })?.name === "AbortError") return;
+    console.error("[ableton-mcp bridge] http error:", err);
+  };
 
   await http.start();
-  await stdio.start();
+  try {
+    await stdio.start();
+  } catch (err) {
+    await http.close();
+    throw err;
+  }
 
-  return { close: async () => closeBoth() };
+  return { close: () => closeBoth() };
 }
