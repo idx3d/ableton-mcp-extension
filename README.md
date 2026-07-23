@@ -38,6 +38,22 @@ npm start              # bundle + run inside real Ableton Live (Developer Mode)
 npm run package        # bundle + produce the installable .ablx
 ```
 
+## Connecting a stdio-only MCP client
+
+Clients that speak only stdio (e.g. Claude Desktop) connect through the bundled
+bridge. Build it once (`npm run build`), then point the client at:
+
+```json
+{
+  "command": "node",
+  "args": ["/absolute/path/to/ableton-mcp-extension/dist/bridge.cjs"]
+}
+```
+
+The bridge auto-discovers the running extension's URL + token from
+`connection.json` (written on activation). To override, set `ABLETON_MCP_URL` (or
+`ABLETON_MCP_PORT`) and `ABLETON_MCP_TOKEN` in the client's `env`.
+
 ## License
 
 [MIT](LICENSE)

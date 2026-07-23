@@ -45,6 +45,11 @@ component scenarios plus the FakeLive-vs-Live contract checks against the real S
 adapter — run it via the status dialog's "Run self-test" button. See
 [`smoke-runbook.md`](smoke-runbook.md) for the procedure and the release gate.
 
+An **stdio bridge** (`dist/bridge.cjs`, the `ableton-mcp` bin) lets stdio-only MCP
+clients reach the loopback HTTP endpoint; it auto-discovers the URL + token from a
+fixed-path `connection.json` the extension writes on activation. See
+[`decisions/0008-stdio-bridge.md`](decisions/0008-stdio-bridge.md).
+
 ## MCP exposure status
 
 | Capability                              | MCP tool(s)                                                         | Status           |
