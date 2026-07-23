@@ -55,6 +55,14 @@ describe("write/read round-trip", () => {
     expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
+  it("tightens 0600 perms on rewrite (posix)", () => {
+    if (process.platform === "win32") return;
+    const path = tempPath();
+    writeFileSync(path, "{}", { mode: 0o644 });
+    writeConnectionFile({ url: "u", token: "t" }, path);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
   it("returns undefined for a corrupt file", () => {
     const path = tempPath();
     writeFileSync(path, "{not json", "utf8");

@@ -5,7 +5,7 @@
  * running server's URL + bearer token — the SDK-assigned storageDirectory is
  * not reconstructable from outside Live.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -38,6 +38,7 @@ export function writeConnectionFile(
   mkdirSync(dirname(path), { recursive: true });
   const body: ConnectionInfo = { ...info, updatedAt: new Date().toISOString() };
   writeFileSync(path, `${JSON.stringify(body, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 /** Reads the connection file; returns undefined if absent, corrupt, or incomplete. */
@@ -47,7 +48,11 @@ export function readConnectionFile(
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<ConnectionInfo>;
     if (typeof parsed.url === "string" && typeof parsed.token === "string") {
-      return { url: parsed.url, token: parsed.token, updatedAt: parsed.updatedAt };
+      return {
+        url: parsed.url,
+        token: parsed.token,
+        updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+      };
     }
     return undefined;
   } catch {
