@@ -4,6 +4,9 @@
  * server's URL + token, then splices an MCP stdio client to the loopback HTTP
  * endpoint at the transport layer.
  */
+import type { Readable, Writable } from "node:stream";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readConnectionFile, type ConnectionInfo } from "../shell/connection-file.js";
 
 export interface Connection {
@@ -32,4 +35,45 @@ export function resolveConnection(
       "Session view and choose 'Ableton MCP: Status…' to confirm the extension " +
       "is running, or set ABLETON_MCP_URL and ABLETON_MCP_TOKEN.",
   );
+}
+
+export interface RunningBridge {
+  close(): Promise<void>;
+}
+
+/**
+ * Splices an MCP stdio client (over the given streams) to the loopback HTTP
+ * endpoint. Both transports are transparent JSONRPCMessage pipes — no
+ * Client/Server objects — so capabilities and tool lists pass through untouched.
+ */
+export async function runBridge(opts: {
+  url: string;
+  token: string;
+  stdin: Readable;
+  stdout: Writable;
+}): Promise<RunningBridge> {
+  const stdio = new StdioServerTransport(opts.stdin, opts.stdout);
+  const http = new StreamableHTTPClientTransport(new URL(opts.url), {
+    requestInit: { headers: { Authorization: `Bearer ${opts.token}` } },
+  });
+
+  let closing = false;
+  const closeBoth = (): void => {
+    if (closing) return;
+    closing = true;
+    void http.close();
+    void stdio.close();
+  };
+
+  stdio.onmessage = (msg) => void http.send(msg);
+  http.onmessage = (msg) => void stdio.send(msg);
+  stdio.onclose = closeBoth;
+  http.onclose = closeBoth;
+  stdio.onerror = (err) => console.error("[ableton-mcp bridge] stdio error:", err);
+  http.onerror = (err) => console.error("[ableton-mcp bridge] http error:", err);
+
+  await http.start();
+  await stdio.start();
+
+  return { close: async () => closeBoth() };
 }
