@@ -11,6 +11,17 @@ await build({
   minify: !process.argv.includes("--dev"),
 });
 
+await build({
+  entryPoints: ["src/bridge/main.ts"],
+  outfile: "dist/bridge.cjs",
+  bundle: true,
+  format: "cjs",
+  platform: "node",
+  banner: { js: "#!/usr/bin/env node" },
+  sourcemap: process.argv.includes("--dev"),
+  minify: !process.argv.includes("--dev"),
+});
+
 // package.json declares "type": "module" (this repo is ESM-first), so Node's
 // require() would otherwise resolve dist/extension.js's module type by
 // walking up to that ancestor and load our esbuild-cjs bundle as ESM — which
@@ -23,4 +34,4 @@ await build({
 // package.json pins dist/ to CommonJS regardless of the root's "type".
 writeFileSync("dist/package.json", JSON.stringify({ type: "commonjs" }) + "\n");
 
-console.log("built dist/extension.js");
+console.log("built dist/extension.js and dist/bridge.cjs");
