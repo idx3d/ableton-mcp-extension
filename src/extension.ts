@@ -28,6 +28,7 @@ import type { ToolDeps } from "./mcp/tools/types.js";
 import { runSelfTest, type SelfTestResult } from "./shell/self-test.js";
 import { AuditLog } from "./shell/audit-log.js";
 import { loadOrCreateConfig } from "./shell/config.js";
+import { writeConnectionFile } from "./shell/connection-file.js";
 import { buildSelfTestResultUrl, buildStatusDialogUrl } from "./shell/status-dialog.js";
 
 const COMMAND_ID = "ableton-mcp.show-status";
@@ -77,6 +78,15 @@ export async function activate(activation: ActivationContext): Promise<void> {
     });
 
     console.log(`[ableton-mcp] MCP server running at ${server.url}`);
+
+    // Publish the effective URL + token to a fixed, externally-locatable path so
+    // the `ableton-mcp` stdio bridge can auto-discover them. Best-effort: a write
+    // failure must never crash activation.
+    try {
+      writeConnectionFile({ url: server.url, token: config.token });
+    } catch (err) {
+      console.error("[ableton-mcp] failed to write connection file:", err);
+    }
 
     context.commands.registerCommand(COMMAND_ID, () => {
       // Commands are synchronous/void; run the async dialog flow detached and

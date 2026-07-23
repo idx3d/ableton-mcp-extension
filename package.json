@@ -2,6 +2,9 @@
   "name": "ableton-mcp-extension",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "ableton-mcp": "dist/bridge.cjs"
+  },
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
