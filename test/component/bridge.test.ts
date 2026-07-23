@@ -89,4 +89,18 @@ describe("stdio bridge splice", () => {
     expect(call.result.content).toBeDefined();
     expect(call.result.isError).toBeFalsy();
   }, 15000);
+
+  it("close() is idempotent under concurrent and repeated calls", async () => {
+    // Regression guard for the microtask-deferred closeBoth in runBridge: both
+    // SDK transports call onclose() synchronously inside close(), so a naive
+    // synchronous closeBoth would re-enter itself and throw a RangeError
+    // (stack overflow) here instead of resolving cleanly.
+    await expect(
+      Promise.all([bridge.close(), bridge.close(), bridge.close()]),
+    ).resolves.toBeDefined();
+
+    // A further close (including the one afterEach will issue) must still
+    // resolve cleanly — this is the whole point of the memoized promise.
+    await expect(bridge.close()).resolves.toBeUndefined();
+  });
 });

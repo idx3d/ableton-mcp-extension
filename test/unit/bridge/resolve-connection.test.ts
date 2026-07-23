@@ -37,4 +37,31 @@ describe("resolveConnection", () => {
   it("throws a recovery-hint error when nothing resolves", () => {
     expect(() => resolveConnection({}, () => undefined)).toThrow(/Ableton MCP: Status/);
   });
+
+  it("throws a friendly error when the connection file's URL is malformed", () => {
+    expect(() => resolveConnection({}, () => ({ url: "u", token: "t" }))).toThrow(
+      /Ableton MCP/,
+    );
+    expect(() => resolveConnection({}, () => ({ url: "u", token: "t" }))).not.toThrow(
+      /^Invalid URL$/,
+    );
+    expect(() => resolveConnection({}, () => ({ url: "u", token: "t" }))).toThrow(
+      /invalid|malformed/i,
+    );
+  });
+
+  it("throws a friendly error when ABLETON_MCP_URL is malformed", () => {
+    expect(() =>
+      resolveConnection(
+        { ABLETON_MCP_URL: "notaurl", ABLETON_MCP_TOKEN: "t" },
+        () => undefined,
+      ),
+    ).toThrow(/Ableton MCP/);
+    expect(() =>
+      resolveConnection(
+        { ABLETON_MCP_URL: "notaurl", ABLETON_MCP_TOKEN: "t" },
+        () => undefined,
+      ),
+    ).toThrow(/invalid|malformed/i);
+  });
 });

@@ -21,20 +21,39 @@ export function resolveConnection(
 ): Connection {
   const token = env.ABLETON_MCP_TOKEN;
   if (env.ABLETON_MCP_URL && token) {
-    return { url: env.ABLETON_MCP_URL, token };
+    return { url: assertWellFormedUrl(env.ABLETON_MCP_URL, "ABLETON_MCP_URL"), token };
   }
   if (env.ABLETON_MCP_PORT && token) {
     return { url: `http://127.0.0.1:${env.ABLETON_MCP_PORT}/mcp`, token };
   }
   const fromFile = readFile();
   if (fromFile) {
-    return { url: fromFile.url, token: fromFile.token };
+    return {
+      url: assertWellFormedUrl(fromFile.url, "the connection file"),
+      token: fromFile.token,
+    };
   }
   throw new Error(
     "No Ableton MCP connection found. In Ableton Live, right-click a Scene in " +
       "Session view and choose 'Ableton MCP: Status…' to confirm the extension " +
       "is running, or set ABLETON_MCP_URL and ABLETON_MCP_TOKEN.",
   );
+}
+
+/** Validates a resolved connection URL, throwing the same recovery-hint style as above. */
+function assertWellFormedUrl(url: string, source: string): string {
+  try {
+    new URL(url);
+  } catch {
+    throw new Error(
+      `Ableton MCP connection is invalid: ${source} contains a malformed URL (${JSON.stringify(
+        url,
+      )}). In Ableton Live, right-click a Scene in Session view and choose ` +
+        "'Ableton MCP: Status…' to confirm the extension is running, or fix/unset " +
+        "ABLETON_MCP_URL.",
+    );
+  }
+  return url;
 }
 
 export interface RunningBridge {
