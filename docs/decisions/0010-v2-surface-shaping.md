@@ -28,7 +28,7 @@ with no existing owner.
 - **Duplicate → create-mode, not a tool.** `create_tracks`, `create_scenes`, and
   `insert_device` gain a `duplicateOf` alternative to their existing
   create-from-scratch inputs (exactly one of `type`/`duplicateOf`,
-  `deviceName`/`duplicateOf`, etc.). Duplication is semantically "create a track /
+  `device`/`duplicateOf`, etc.). Duplication is semantically "create a track /
   scene / device" with a different source, not a new action needing its own tool
   and its own result shape.
 - **New domains get new tools.** `set_simpler_sample` (Phase A, this PR) has no
@@ -76,19 +76,25 @@ with no existing owner.
   `insert_chain`; 4c adds `import_file`, `render_audio`).
 - Extended tools' schemas grow unions and optionals — `type` vs. `duplicateOf`
   on `create_tracks`, `{ trackId, sceneId }` vs. `{ laneId, startBeats }` on
-  clip creation, `deviceName` vs. `duplicateOf` on `insert_device`, `trackId`
-  vs. `chainId` also on `insert_device`. "Exactly one of" validation moves into
-  the service layer rather than the zod schema alone, since zod's discriminated
-  unions don't cleanly express "exactly one of these optional sibling fields" —
-  each service checks and returns `INVALID_INPUT` when zero or more than one
-  variant is present.
+  clip creation, `device` vs. `duplicateOf` on `insert_device`, `trackId` vs.
+  `chainId` also on `insert_device`. "Exactly one of" is not a single uniform
+  rule — each tool's real constraint, and where it lives, differs: `create_tracks`
+  requires exactly one of `type`/`duplicateOf` per spec, enforced in
+  `TrackService.createTracks` (`INVALID_INPUT` otherwise); `create_scenes`
+  requires only _at least_ one of `count`/`duplicateOf` — combining them is
+  valid and means "duplicate the source `count` times" — also enforced in
+  `TrackService`; `insert_device`'s `device`/`duplicateOf` exclusivity is
+  enforced in the MCP tool handler itself (`src/mcp/tools/devices.ts`), not in
+  `DeviceService`, which only exposes separate `insertDevice`/`duplicateDevice`
+  port calls. Each tool's own description and error message state its actual
+  rule rather than a schema comment implying one uniform pattern.
 - API asymmetries this decision surfaces as structured errors rather than
   silently-absent features: cue time has no setter (`update_song` describes
-  delete-and-re-add as the recovery path for "moving" a cue); chains have no
-  delete/move/rename and lanes have no delete (both stated in the relevant tool's
-  description and recorded in the capability map's "Not possible" column, so the
-  model sees the constraint before attempting the call and gets `UNSUPPORTED`
-  with a hint if it tries anyway).
+  delete-and-re-add as the recovery path for "moving" a cue); chains will have
+  no delete/move/rename and lanes no delete (Plan 4b — both to be stated in the
+  relevant tool's description and recorded in the capability map's "Not
+  possible" column, so the model sees the constraint before attempting the call
+  and gets `UNSUPPORTED` with a hint if it tries anyway).
 - Every future v2 capability gets evaluated against this same rule before Plans
   4b/4c are written: a facet of an existing domain extends that domain's tool; a
   new domain earns a new tool.
