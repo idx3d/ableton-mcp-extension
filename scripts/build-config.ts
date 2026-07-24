@@ -4,7 +4,21 @@
  * test exercises the exact options that ship — removing the `global` define
  * below fails the test.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { BuildOptions } from "esbuild";
+
+/**
+ * Prelude prepended to the extension bundle (as an esbuild banner) so it runs
+ * before any bundled dependency. Ableton's Extension Host evaluates the bundle in
+ * a stripped Node vm-context missing most web globals (URL, TextEncoder, crypto,
+ * streams, …); this installs them from `node:` builtins. See the file for detail.
+ */
+const hostGlobalsPrelude = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "host-globals-prelude.js"),
+  "utf8",
+);
 
 /**
  * The Extension Host evaluates the bundle in a context that exposes `globalThis`
@@ -35,6 +49,7 @@ export function extensionBuildOptions(dev: boolean): BuildOptions {
     ...base(dev),
     entryPoints: ["src/extension.ts"],
     outfile: "dist/extension.js",
+    banner: { js: hostGlobalsPrelude },
   };
 }
 

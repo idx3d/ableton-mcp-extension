@@ -6,19 +6,45 @@ import { describe, expect, it } from "vitest";
 import { extensionBuildOptions } from "../../scripts/build-config.js";
 
 /**
- * The Ableton Extension Host evaluates the bundle in a context that exposes
- * `globalThis` but NOT Node's `global` binding. A bundled `@hono/node-server`
- * fetch shim (pulled via the MCP SDK's HTTP transport) references bare `global`,
- * which threw `ReferenceError: global is not defined` and crashed the host on
- * first in-Live load. Normal Node/vitest always define `global`, so nothing else
- * in the suite catches this — this test recreates the host condition.
+ * Ableton's Extension Host evaluates the bundle in a stripped Node vm-context
+ * that exposes only a handful of globals and NONE of the web platform globals
+ * (`URL`, `TextEncoder`, `crypto`, `Request`, `Response`, `ReadableStream`, …) or
+ * the bare `global` identifier. On first in-Live load this crashed twice —
+ * `ReferenceError: global is not defined`, then `Class extends value undefined`
+ * (a bundled `@hono/node-server` shim extending the absent `Request`). Normal
+ * Node/vitest define all of these, so nothing else in the suite catches it.
  *
- * We cannot bundle `src/extension.ts` in CI (it imports the Ableton SDK, which is
- * not installed there — ADR 0005). `src/mcp/http.ts` is SDK-free, pulls the same
- * `@hono/node-server` shim through `StreamableHTTPServerTransport`, and is built
- * with the SAME shared options (`extensionBuildOptions`) that ship — so removing
- * the `global` → `globalThis` define from `scripts/build-config.ts` fails here.
+ * This test recreates the exact host context (inventory captured from an in-Live
+ * probe on Live 12.4.5b8 / Node 24.14.1) and evaluates the bundles built with the
+ * SHIPPED options (`extensionBuildOptions`, which carry the `global→globalThis`
+ * define AND the host-globals prelude). We cannot bundle `src/extension.ts` in CI
+ * (it imports the Ableton SDK, absent there — ADR 0005), so we cover the two
+ * SDK-free entries that pull the load-time dependency graph: `src/mcp/server.ts`
+ * (SDK core + every tool + zod) and `src/mcp/http.ts` (the node:http transport).
+ * Removing the prelude or the define, or reintroducing a web-global dependency,
+ * fails this test with the same error the host threw.
  */
+
+/** Globals the Extension Host provides, beyond the JS intrinsics every vm context has. */
+function hostSandbox(entryPath: string): Record<string, unknown> {
+  const sandbox: Record<string, unknown> = {
+    fetch: globalThis.fetch,
+    AbortController: globalThis.AbortController,
+    Buffer: globalThis.Buffer,
+    process: globalThis.process,
+    console: globalThis.console,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    setInterval: globalThis.setInterval,
+    clearInterval: globalThis.clearInterval,
+    require: createRequire(entryPath),
+  };
+  const moduleObj = { exports: {} as Record<string, unknown> };
+  sandbox.module = moduleObj;
+  sandbox.exports = moduleObj.exports;
+  return sandbox;
+}
+
 async function bundleWithShippedOptions(entry: string): Promise<string> {
   const result = await build({
     ...extensionBuildOptions(false),
@@ -29,43 +55,23 @@ async function bundleWithShippedOptions(entry: string): Promise<string> {
   return result.outputFiles[0].text;
 }
 
-/** Evaluate CJS `code` in a context mirroring the host: `globalThis` yes, `global` no. */
-function loadInGlobalLessContext(code: string, entry: string): Record<string, unknown> {
-  const sandbox: Record<string, unknown> = {};
-  for (const key of Object.getOwnPropertyNames(globalThis)) {
-    try {
-      sandbox[key] = (globalThis as Record<string, unknown>)[key];
-    } catch {
-      /* some getters throw; skip */
-    }
-  }
-  delete sandbox.global; // the host does not expose the bare `global` identifier
-
-  const entryPath = resolve(entry);
-  sandbox.require = createRequire(entryPath);
-  const moduleObj = { exports: {} as Record<string, unknown> };
-  sandbox.module = moduleObj;
-  sandbox.exports = moduleObj.exports;
-
+function loadInHostContext(code: string, entry: string): Record<string, unknown> {
+  const sandbox = hostSandbox(resolve(entry));
   vm.createContext(sandbox);
-  vm.runInContext(code, sandbox, { filename: entryPath });
-  return moduleObj.exports;
+  vm.runInContext(code, sandbox, { filename: resolve(entry) });
+  return (sandbox.module as { exports: Record<string, unknown> }).exports;
 }
 
-describe("extension bundle loads without Node's `global` binding", () => {
-  const ENTRY = "src/mcp/http.ts";
-
-  it("evaluates in a global-less context (Extension Host parity)", async () => {
-    const code = await bundleWithShippedOptions(ENTRY);
-    const exported = loadInGlobalLessContext(code, ENTRY);
-    // Full top-level evaluation ran (the hono shim executes at module load);
-    // startHttpServer is http.ts's export, proving the module fully evaluated.
-    expect(typeof exported.startHttpServer).toBe("function");
+describe("extension bundle loads in the stripped Extension Host context", () => {
+  it("evaluates src/mcp/server.ts (SDK core + tools + zod)", async () => {
+    const code = await bundleWithShippedOptions("src/mcp/server.ts");
+    const exported = loadInHostContext(code, "src/mcp/server.ts");
+    expect(typeof exported.createMcpServer).toBe("function");
   });
 
-  it("emits no bare `global` reference in the shipped bundle", async () => {
-    const code = await bundleWithShippedOptions(ENTRY);
-    const bareGlobal = /(^|[^A-Za-z0-9_.$])global([^A-Za-z0-9_]|$)/;
-    expect(bareGlobal.test(code)).toBe(false);
+  it("evaluates src/mcp/http.ts (node:http transport)", async () => {
+    const code = await bundleWithShippedOptions("src/mcp/http.ts");
+    const exported = loadInHostContext(code, "src/mcp/http.ts");
+    expect(typeof exported.startHttpServer).toBe("function");
   });
 });
