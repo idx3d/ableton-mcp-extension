@@ -30,27 +30,43 @@ export function noteToSdk(note: Note): SdkNote {
   };
 }
 
+/**
+ * Real Live marshals integer-domain SDK getters (color, root note, MIDI pitch,
+ * marker positions, …) as `bigint` even though the SDK types them `number`.
+ * Coerce at the boundary so downstream arithmetic (`n & 0xffffff`) and JSON
+ * serialization never meet a BigInt. FakeLive uses plain numbers, so this is a
+ * no-op there; `Number()` is also a no-op for values already numeric.
+ */
+export function toNumber(value: number | bigint): number {
+  return typeof value === "bigint" ? Number(value) : value;
+}
+
 export function noteFromSdk(sdk: SdkNote): Note {
+  const probability =
+    sdk.probability === undefined ? undefined : toNumber(sdk.probability);
+  const velocityDeviation =
+    sdk.velocityDeviation === undefined ? undefined : toNumber(sdk.velocityDeviation);
+  const releaseVelocity =
+    sdk.releaseVelocity === undefined ? undefined : toNumber(sdk.releaseVelocity);
   const extras: NoteExtras = {};
-  if (sdk.probability !== undefined && sdk.probability !== 1)
-    extras.prob = sdk.probability;
-  if (sdk.velocityDeviation !== undefined && sdk.velocityDeviation !== 0)
-    extras.velDev = sdk.velocityDeviation;
+  if (probability !== undefined && probability !== 1) extras.prob = probability;
+  if (velocityDeviation !== undefined && velocityDeviation !== 0)
+    extras.velDev = velocityDeviation;
   if (sdk.muted) extras.muted = true;
-  if (sdk.releaseVelocity !== undefined && sdk.releaseVelocity !== 64)
-    extras.relVel = sdk.releaseVelocity;
+  if (releaseVelocity !== undefined && releaseVelocity !== 64)
+    extras.relVel = releaseVelocity;
   const base: [number, number, number, number] = [
-    sdk.pitch,
-    sdk.startTime,
-    sdk.duration,
-    sdk.velocity ?? 100,
+    toNumber(sdk.pitch),
+    toNumber(sdk.startTime),
+    toNumber(sdk.duration),
+    sdk.velocity === undefined ? 100 : toNumber(sdk.velocity),
   ];
   return Object.keys(extras).length > 0 ? [...base, extras] : base;
 }
 
 /** Best-effort 0xRRGGBB mapping — verify against real Live (smoke runbook). */
-export function colorToHex(n: number): string {
-  return `#${(n & 0xffffff).toString(16).padStart(6, "0").toUpperCase()}`;
+export function colorToHex(n: number | bigint): string {
+  return `#${(toNumber(n) & 0xffffff).toString(16).padStart(6, "0").toUpperCase()}`;
 }
 
 export function colorFromHex(hex: string): number {
