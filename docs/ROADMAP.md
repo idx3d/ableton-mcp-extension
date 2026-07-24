@@ -16,27 +16,29 @@ The 21-tool MCP server builds and packages to an installable `.ablx`. Architectu
 decisions, and tool reference are in `docs/` (specs, decisions/ ADRs 0001–0007,
 capability-map, tools.md, plans/).
 
-## The v0.1.0 release gate — in-Live smoke (NOT yet done)
+## The v0.1.0 release gate — in-Live smoke
 
-The only thing between here and tagging v0.1.0 is running the extension inside a real
-Ableton Live beta. Nothing in CI can cover this (no Live host in CI).
+**macOS: PASSED** (Live 12.4.5b8, 2026-07-24 — self-test **20/20, 0 failed**). Getting
+there surfaced and fixed three real bugs no CI could catch — the Extension Host is a
+stripped Node `vm`-context, not full Node (see
+[`decisions/0009-real-extension-host-runtime.md`](decisions/0009-real-extension-host-runtime.md)):
+`global`→`globalThis`; a custom `node:http` transport replacing the SDK's hono-based one
+plus a host-globals prelude; and `toNumber` coercion for bigint-marshalled SDK getters.
+The fixes are on branch `fix/extension-host-global` (→ PR).
 
-Follow **`docs/smoke-runbook.md`**:
+**Remaining before tagging v0.1.0:**
 
-1. Install the Extensions-capable Ableton Live beta; enable Developer Mode.
-2. Obtain the SDK tarballs from Ableton's beta program into `references/` (gitignored).
-3. `npm ci && npm run setup:sdk`, then `npm run start` to load the dev build into Live.
-4. Open the status dialog (Scene context-menu → the registered action), click
-   **Run self-test**, confirm all checks PASS — on **macOS and Windows**.
-5. Tick every item in the runbook's "Deferred in-Live verifications" checklist (SDK
-   behaviors flagged inline in `src/adapters/sdk-1.0/sdk-adapter.ts`): clip color
-   `0xRRGGBB` packing, session-clip `lengthBeats` formula, `mixer.sends[i]` ↔
-   `returnTracks[i]` ordering, group tracks reported as type `"audio"`,
-   `insertDevice` unknown-name throw behavior, `valueItems` quantized-only,
-   `withinTransaction` empty-undo-step + sequential-await undo grouping, handle-cache
-   referential liveness across a session.
-6. Fix any parity failures the self-test surfaces (FakeLive is the behavioral
-   reference), then tag v0.1.0.
+1. Land the `fix/extension-host-global` PR on main.
+2. **Windows self-test** — same procedure on a Windows Live beta (still pending; not yet
+   run). Nothing in CI can cover this (no Live host in CI).
+3. Then tag v0.1.0.
+
+To run the smoke on a fresh machine, follow **`docs/smoke-runbook.md`**: install the
+Extensions-capable Live beta + enable Developer Mode; drop the SDK tarballs into
+`references/`; `npm ci && npm run setup:sdk`; `npm run package` and install the `.ablx`
+(or `npm run start` for the dev build); then Scene context-menu → **Run self-test**. The
+runbook's "Deferred in-Live verifications" checklist records what the macOS run
+validated and what still wants an eyeball.
 
 ## Candidate next slices (after v0.1.0)
 

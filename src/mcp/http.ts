@@ -4,7 +4,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { NodeHttpStatelessTransport } from "./node-http-transport.js";
 
 export interface HttpOptions {
   /** 0 = let the OS pick (tests). Production default: 20808. */
@@ -38,6 +38,12 @@ function deny(res: ServerResponse, status: number, message: string): void {
     .end(JSON.stringify({ error: message }));
 }
 
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 /**
  * Stateless Streamable HTTP endpoint at /mcp, bound to 127.0.0.1 only.
  * Security (P2, per spec §7): loopback bind, Host/Origin validation, bearer token.
@@ -58,23 +64,24 @@ export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpSer
         if (url.pathname !== "/mcp") {
           return deny(res, 404, "Not found");
         }
+        // Stateless: only POST carries JSON-RPC. GET (SSE) / DELETE (session end)
+        // have no meaning without sessions, so reject them like the SDK's own
+        // stateless server does.
+        if (req.method !== "POST") {
+          return deny(res, 405, "Method not allowed");
+        }
 
         // Stateless mode: fresh server + transport per request avoids session state.
         const mcpServer = opts.createServer();
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined,
-          enableJsonResponse: true,
-        });
+        const transport = new NodeHttpStatelessTransport(res);
         res.on("close", () => {
-          transport
-            .close()
-            .catch((err) => console.error("[ableton-mcp] transport close error:", err));
           mcpServer
             .close()
             .catch((err) => console.error("[ableton-mcp] server close error:", err));
         });
+        const body = await readBody(req);
         await mcpServer.connect(transport);
-        await transport.handleRequest(req, res);
+        await transport.handleHttpRequest(body);
       } catch (error) {
         console.error("[ableton-mcp] http error:", error);
         if (!res.headersSent) deny(res, 500, "Internal server error");

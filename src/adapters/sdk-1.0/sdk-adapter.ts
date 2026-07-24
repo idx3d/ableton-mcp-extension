@@ -56,7 +56,7 @@ import type {
   TrackSpec,
   TrackSummary,
 } from "../../port/types.js";
-import { colorFromHex, colorToHex, noteFromSdk, noteToSdk } from "./codec.js";
+import { colorFromHex, colorToHex, noteFromSdk, noteToSdk, toNumber } from "./codec.js";
 import { IdRegistry } from "./id-registry.js";
 
 type V = "1.0.0";
@@ -82,9 +82,9 @@ export class SdkAdapter implements LivePort {
   async getSet(): Promise<SetSnapshot> {
     const song = this.song;
     return {
-      tempo: song.tempo,
+      tempo: toNumber(song.tempo),
       scaleName: song.scaleName,
-      rootNote: song.rootNote,
+      rootNote: toNumber(song.rootNote),
       tracks: song.tracks.map((t) => this.summarizeTrack(t)),
       scenes: song.scenes.map((s) => this.summarizeScene(s)),
       returnTracks: song.returnTracks.map((r) => ({
@@ -336,10 +336,12 @@ export class SdkAdapter implements LivePort {
           `Valid parameters: ${device.parameters.map((p) => p.name).join(", ")}.`,
         );
       }
-      if (value < param.min || value > param.max) {
+      const min = toNumber(param.min);
+      const max = toNumber(param.max);
+      if (value < min || value > max) {
         throw new PortError(
           "INVALID_INPUT",
-          `parameter "${name}" value ${value} outside [${param.min}, ${param.max}]`,
+          `parameter "${name}" value ${value} outside [${min}, ${max}]`,
         );
       }
       if (param.isQuantized && !Number.isInteger(value)) {
@@ -495,8 +497,8 @@ export class SdkAdapter implements LivePort {
     // otherwise the start/end-marker span. Pinned by the Plan-3 contract
     // self-tests against real Live.
     const lengthBeats = clip.looping
-      ? clip.loopEnd - clip.loopStart
-      : clip.endMarker - clip.startMarker;
+      ? toNumber(clip.loopEnd) - toNumber(clip.loopStart)
+      : toNumber(clip.endMarker) - toNumber(clip.startMarker);
     return {
       id: this.clipIds.idFor(clip),
       kind: this.clipKind(clip),
@@ -542,9 +544,9 @@ export class SdkAdapter implements LivePort {
     const valueItems = param.valueItems;
     return {
       name: param.name,
-      value,
-      min: param.min,
-      max: param.max,
+      value: toNumber(value),
+      min: toNumber(param.min),
+      max: toNumber(param.max),
       quantized: param.isQuantized,
       // valueItems are the discrete labels of quantized params; omit for
       // continuous params (empty array), matching FakeLive's shape.
@@ -570,9 +572,9 @@ export class SdkAdapter implements LivePort {
     for (let i = 0; i < returns.length && i < sendValues.length; i++) {
       sends.push({
         returnId: this.returnIds.idFor(returns[i]),
-        value: sendValues[i],
+        value: toNumber(sendValues[i]),
       });
     }
-    return { volume, pan, sends };
+    return { volume: toNumber(volume), pan: toNumber(pan), sends };
   }
 }
