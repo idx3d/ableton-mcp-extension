@@ -67,6 +67,7 @@ const BASE_STYLE = `
   .field { margin-bottom: 14px; }
   .label { color: #9a9a9a; text-transform: uppercase; font-size: 10px; letter-spacing: .06em; margin-bottom: 4px; }
   code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .url { font-size: 13px; word-break: break-all; }
   .cmd {
     display: block; background: #111; border: 1px solid #333; border-radius: 6px;
     padding: 10px; white-space: pre-wrap; word-break: break-all; font-size: 12px;
