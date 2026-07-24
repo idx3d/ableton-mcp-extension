@@ -76,6 +76,8 @@ export interface DeviceRef {
 export interface DeviceDetail extends DeviceRef {
   trackId: TrackId;
   params: DeviceParam[];
+  /** Simpler devices only: path of the loaded sample. */
+  samplePath?: string;
 }
 
 export interface ReturnTrackSummary {

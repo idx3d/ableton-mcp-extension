@@ -48,6 +48,7 @@ interface FakeDevice {
   id: DeviceId;
   name: string;
   params: DeviceParam[];
+  samplePath?: string;
 }
 
 interface FakeMixer {
@@ -99,6 +100,7 @@ function knob(name: string, value: number, min = 0, max = 1): DeviceParam {
 }
 
 const CATALOG: Record<string, DeviceParam[]> = {
+  Simpler: [onOff, knob("Volume", 0.85), knob("Filter Freq", 1)],
   Reverb: [onOff, knob("Dry/Wet", 1), knob("Decay Time", 0.6), knob("Room Size", 0.5)],
   "Auto Filter": [onOff, knob("Frequency", 1), knob("Resonance", 0)],
   Compressor: [onOff, knob("Threshold", 0.85), knob("Ratio", 0.3), knob("Attack", 0.2)],
@@ -180,6 +182,9 @@ export class FakeLive implements LivePort {
         ...p,
         valueItems: p.valueItems ? [...p.valueItems] : undefined,
       })),
+      ...(found.device.samplePath !== undefined
+        ? { samplePath: found.device.samplePath }
+        : {}),
     };
   }
 
@@ -397,6 +402,25 @@ export class FakeLive implements LivePort {
     const found = this.findDevice(id);
     if (!found) throw PortError.notFound("device", id);
     found.track.devices = found.track.devices.filter((d) => d.id !== id);
+  }
+
+  async setSimplerSample(
+    id: DeviceId,
+    filePath: string,
+  ): Promise<{ samplePath: string }> {
+    const found = this.findDevice(id);
+    if (!found) throw PortError.notFound("device", id);
+    if (found.device.name !== "Simpler") {
+      throw new PortError(
+        "UNSUPPORTED",
+        `device ${id} is a ${found.device.name}, not a Simpler`,
+        "set_simpler_sample only works on Simpler devices (see get_track for names).",
+      );
+    }
+    // FakeLive cannot check the file exists; real Live throws (mapped to
+    // NOT_FOUND by the SdkAdapter) — pinned by the self-test contract checks.
+    found.device.samplePath = filePath;
+    return { samplePath: filePath };
   }
 
   async setMixer(trackId: TrackId, patch: MixerPatch): Promise<void> {

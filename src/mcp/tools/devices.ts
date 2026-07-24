@@ -81,4 +81,19 @@ export const deviceTools: ToolDef[] = [
       return { deleted: args.deviceId };
     },
   },
+  {
+    name: "set_simpler_sample",
+    description:
+      "Replace the sample loaded in a Simpler device with an audio file " +
+      "(absolute path on the machine running Live), in one undo step. Fails " +
+      "UNSUPPORTED on any other device type. Returns the loaded sample's path.",
+    inputSchema: { deviceId: z.string(), filePath: z.string().min(1) },
+    handler: async (args, deps) => {
+      const { samplePath } = await deps.devices.setSimplerSample(
+        args.deviceId as string,
+        args.filePath as string,
+      );
+      return { deviceId: args.deviceId, samplePath };
+    },
+  },
 ];

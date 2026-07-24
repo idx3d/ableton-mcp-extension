@@ -65,6 +65,8 @@ export interface LivePort {
   deleteDevice(id: DeviceId): Promise<void>;
   setMixer(trackId: TrackId, patch: MixerPatch): Promise<void>;
   updateSong(patch: SongPatch): Promise<UpdateSongResult>;
+  /** Replace the sample of a Simpler device (absolute file path). */
+  setSimplerSample(id: DeviceId, filePath: string): Promise<{ samplePath: string }>;
 
   /** Group all writes inside fn into one undo step named undoLabel. */
   transact<T>(undoLabel: string, fn: () => Promise<T>): Promise<T>;

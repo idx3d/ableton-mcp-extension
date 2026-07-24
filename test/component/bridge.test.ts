@@ -83,7 +83,7 @@ describe("stdio bridge splice", () => {
     notify("notifications/initialized");
 
     const list = await rpc(2, "tools/list", {});
-    expect(list.result.tools.length).toBe(21);
+    expect(list.result.tools.length).toBe(22);
 
     const call = await rpc(3, "tools/call", { name: "get_set", arguments: {} });
     expect(call.result.content).toBeDefined();

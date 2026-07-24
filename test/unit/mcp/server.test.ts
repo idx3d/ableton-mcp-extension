@@ -48,7 +48,7 @@ describe("MCP server over in-memory transport", () => {
     client = await connect(fake);
   });
 
-  it("lists the 21 v1 tools", async () => {
+  it("lists the 22 v1 tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
@@ -69,6 +69,7 @@ describe("MCP server over in-memory transport", () => {
         "replace_clip_notes",
         "set_device_params",
         "set_mixer",
+        "set_simpler_sample",
         "update_clip",
         "update_scene",
         "update_song",
