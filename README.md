@@ -11,7 +11,7 @@ listens on `localhost` over Streamable HTTP, and is protected by a per-install b
 
 ## Status
 
-**Extension complete; macOS in-Live validated.** The 21-tool MCP server runs inside a real
+**Extension complete; macOS in-Live validated.** The 22-tool MCP server runs inside a real
 Ableton Live beta — its built-in self-test passes **20/20 on macOS** (Live 12.4.5b8), and the
 full read + write surface has been driven end-to-end against a live set. Windows in-Live
 validation is the remaining gate before tagging `v0.1.0`.

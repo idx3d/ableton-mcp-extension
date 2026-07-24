@@ -47,8 +47,12 @@ execution flow. See `docs/capability-map.md` for what the SDK does/doesn't allow
 
 - **stdio proxy transport** — a tiny `npx ableton-mcp` bridge for stdio-only MCP
   clients (the HTTP wire boundary was designed to allow this; out of scope for v1).
-- **Deferred v2 tools** (SDK-permitting): audio render / file import, take lanes,
-  Simpler sample replacement, rack chains — tracked as `deferred` in the capability map.
+- **v2 in progress**: Plan 4a (this PR — cue points, duplicate track/scene/device,
+  audio-clip warp, Simpler sample replace; spec
+  `docs/specs/2026-07-24-v2-tool-surface-design.md`, ADR
+  [0010](decisions/0010-v2-surface-shaping.md)) → Plan 4b (take lanes, rack chains)
+  → Plan 4c (file import, audio render) to follow — tracked as `deferred` in the
+  capability map until each phase lands.
 - **Concurrency hardening** — revision counters / conflict detection for
   producer-and-AI-edit-simultaneously (v1 relies on fail-loud stale IDs).
 - **SDK version bump** — when Ableton ships API 1.1.0, follow the upgrade playbook in
