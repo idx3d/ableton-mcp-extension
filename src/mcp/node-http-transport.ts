@@ -2,7 +2,7 @@
  * A stateless MCP `Transport` backed only by `node:http` — no `@hono/node-server`
  * and no Web `Request`/`Response`/`Headers`. Ableton's Extension Host runs the
  * bundle in a stripped Node vm-context that lacks those web globals (see ADR
- * 0008 / the runtime notes), so the SDK's `StreamableHTTPServerTransport` cannot
+ * 0009 / the runtime notes), so the SDK's `StreamableHTTPServerTransport` cannot
  * load there. This transport speaks the subset of the Streamable HTTP wire
  * protocol we use — stateless, JSON responses, one MCP server per request — which
  * is enough for the real `StreamableHTTPClientTransport` on the other end.
@@ -59,6 +59,12 @@ export class NodeHttpStatelessTransport implements Transport {
   }
 
   async close(): Promise<void> {
+    // Settle `done` if we close before a reply was written (e.g. the client
+    // aborted mid-request) so an awaiting `handleHttpRequest` never hangs.
+    if (!this.finished) {
+      this.finished = true;
+      this.resolveDone();
+    }
     this.onclose?.();
   }
 
