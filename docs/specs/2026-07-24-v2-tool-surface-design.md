@@ -14,8 +14,8 @@ verified buildable against SDK 1.0.0-beta.0 (signatures re-checked against the
 vendored typedoc on 2026-07-24).
 
 The surface grows 21 → 27 tools: **6 new tools**, extensions to **7 existing write
-tools**, and richer output on the 4 `get_*` read tools — shaped by the rule *extend an existing tool where the capability is a new
-facet of an existing domain; add a tool only for a genuinely new domain*.
+tools**, and richer output on the 4 `get_*` read tools — shaped by the rule _extend an existing tool where the capability is a new
+facet of an existing domain; add a tool only for a genuinely new domain_.
 
 **Non-goals:** anything the API cannot do (transport/launch, routing, automation,
 song-key write, VST loading, warp-marker editing — see `docs/capability-map.md`);

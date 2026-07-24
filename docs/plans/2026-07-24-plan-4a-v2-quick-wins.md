@@ -651,14 +651,14 @@ Expected: FAIL — signatures/validation missing.
 `src/domain/track-service.ts` — in `createTracks`, after the empty check:
 
 ```ts
-    for (const spec of specs) {
-      if ((spec.type !== undefined) === (spec.duplicateOf !== undefined)) {
-        throw new PortError(
-          "INVALID_INPUT",
-          "each track spec needs exactly one of type or duplicateOf",
-        );
-      }
-    }
+for (const spec of specs) {
+  if ((spec.type !== undefined) === (spec.duplicateOf !== undefined)) {
+    throw new PortError(
+      "INVALID_INPUT",
+      "each track spec needs exactly one of type or duplicateOf",
+    );
+  }
+}
 ```
 
 Replace `createScenes`:
@@ -889,12 +889,7 @@ Expected: FAIL — compile errors (`warping` not in `ClipPatch`).
 ```ts
 /** Live's warp algorithms (audio clips). Mirrors the SDK WarpMode enum. */
 export type WarpMode =
-  | "beats"
-  | "tones"
-  | "texture"
-  | "repitch"
-  | "complex"
-  | "complexPro";
+  "beats" | "tones" | "texture" | "repitch" | "complex" | "complexPro";
 ```
 
 In `ClipPatch`, after `color`:
@@ -942,23 +937,23 @@ In `getClip`, extend the return (after the `filePath` spread):
 In `updateClip`, before the `name` assignment:
 
 ```ts
-    if (
-      (patch.warping !== undefined || patch.warpMode !== undefined) &&
-      found.clip.kind !== "audio"
-    ) {
-      throw new PortError(
-        "UNSUPPORTED",
-        `clip ${id} is a MIDI clip`,
-        "warping and warpMode apply to audio clips only.",
-      );
-    }
+if (
+  (patch.warping !== undefined || patch.warpMode !== undefined) &&
+  found.clip.kind !== "audio"
+) {
+  throw new PortError(
+    "UNSUPPORTED",
+    `clip ${id} is a MIDI clip`,
+    "warping and warpMode apply to audio clips only.",
+  );
+}
 ```
 
 and after the `color` assignment:
 
 ```ts
-    if (patch.warping !== undefined) found.clip.warping = patch.warping;
-    if (patch.warpMode !== undefined) found.clip.warpMode = patch.warpMode;
+if (patch.warping !== undefined) found.clip.warping = patch.warping;
+if (patch.warpMode !== undefined) found.clip.warpMode = patch.warpMode;
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -1084,9 +1079,7 @@ describe("FakeLive Simpler sample", () => {
   });
 
   it("is UNSUPPORTED on non-Simpler devices", async () => {
-    await expect(
-      fake.setSimplerSample("d2", "/samples/kick.wav"),
-    ).rejects.toMatchObject({
+    await expect(fake.setSimplerSample("d2", "/samples/kick.wav")).rejects.toMatchObject({
       code: "UNSUPPORTED",
       message: "device d2 is a Reverb, not a Simpler",
     });
@@ -1276,9 +1269,7 @@ describe("v2 quick wins (component)", () => {
     const [intro, second] = add.payload.addedCues;
 
     const set = await callTool(stack.client, "get_set");
-    expect(set.payload.set.cues.map((c: { name: string }) => c.name)).toContain(
-      "Intro",
-    );
+    expect(set.payload.set.cues.map((c: { name: string }) => c.name)).toContain("Intro");
 
     const edit = await callTool(stack.client, "update_song", {
       renameCues: [{ id: second.id, name: "Drop" }],
@@ -1390,18 +1381,18 @@ describe("v2 quick wins (component)", () => {
 `test/component/token-budget.test.ts` — in `bigFixture()`, before `return fake;`:
 
 ```ts
-  await fake.updateSong({
-    addCues: Array.from({ length: 10 }, (_, i) => ({
-      timeBeats: i * 16,
-      name: `Section ${i + 1}`,
-    })),
-  });
+await fake.updateSong({
+  addCues: Array.from({ length: 10 }, (_, i) => ({
+    timeBeats: i * 16,
+    name: `Section ${i + 1}`,
+  })),
+});
 ```
 
 In the `get_set` budget test, add after the tracks assertion:
 
 ```ts
-    expect(payload.set.cues).toHaveLength(10);
+expect(payload.set.cues).toHaveLength(10);
 ```
 
 - [ ] **Step 3: Run the full gate**
@@ -1533,24 +1524,24 @@ Replace `updateSong`:
 In `createTracks`, replace the loop body:
 
 ```ts
-    for (const spec of specs) {
-      let track: Track<V>;
-      if (spec.duplicateOf !== undefined) {
-        const source = this.resolveTrack(spec.duplicateOf);
-        track = await this.song.duplicateTrack(source);
-      } else if (spec.type === "midi") {
-        track = await this.song.createMidiTrack();
-      } else if (spec.type === "audio") {
-        track = await this.song.createAudioTrack();
-      } else {
-        throw new PortError(
-          "INVALID_INPUT",
-          "each track spec needs exactly one of type or duplicateOf",
-        );
-      }
-      if (spec.name !== undefined) track.name = spec.name;
-      created.push(this.summarizeTrack(track));
-    }
+for (const spec of specs) {
+  let track: Track<V>;
+  if (spec.duplicateOf !== undefined) {
+    const source = this.resolveTrack(spec.duplicateOf);
+    track = await this.song.duplicateTrack(source);
+  } else if (spec.type === "midi") {
+    track = await this.song.createMidiTrack();
+  } else if (spec.type === "audio") {
+    track = await this.song.createAudioTrack();
+  } else {
+    throw new PortError(
+      "INVALID_INPUT",
+      "each track spec needs exactly one of type or duplicateOf",
+    );
+  }
+  if (spec.name !== undefined) track.name = spec.name;
+  created.push(this.summarizeTrack(track));
+}
 ```
 
 Replace `createScenes`:
@@ -1599,25 +1590,25 @@ In `getClip`, after the `filePath` spread:
 In `updateClip`, before the `name` assignment:
 
 ```ts
-    if (
-      (patch.warping !== undefined || patch.warpMode !== undefined) &&
-      !(clip instanceof AudioClip)
-    ) {
-      throw new PortError(
-        "UNSUPPORTED",
-        `clip ${id} is a MIDI clip`,
-        "warping and warpMode apply to audio clips only.",
-      );
-    }
+if (
+  (patch.warping !== undefined || patch.warpMode !== undefined) &&
+  !(clip instanceof AudioClip)
+) {
+  throw new PortError(
+    "UNSUPPORTED",
+    `clip ${id} is a MIDI clip`,
+    "warping and warpMode apply to audio clips only.",
+  );
+}
 ```
 
 and after the `color` assignment (the instanceof check above lets TS narrow only inside a guarded block — re-check as needed):
 
 ```ts
-    if (clip instanceof AudioClip) {
-      if (patch.warping !== undefined) clip.warping = patch.warping;
-      if (patch.warpMode !== undefined) clip.warpMode = warpModeToSdk(patch.warpMode);
-    }
+if (clip instanceof AudioClip) {
+  if (patch.warping !== undefined) clip.warping = patch.warping;
+  if (patch.warpMode !== undefined) clip.warpMode = warpModeToSdk(patch.warpMode);
+}
 ```
 
 - [ ] **Step 5: Simpler in SdkAdapter**
@@ -1696,17 +1687,17 @@ git commit -m "feat: SDK adapter for cues, duplicate, warp, Simpler sample"
 In `runSelfTest`, next to `createdTrackIds`:
 
 ```ts
-  let createdCueIds: string[] = [];
+let createdCueIds: string[] = [];
 ```
 
 In the `finally` block, after the scene/track deletion (inside the same `try`):
 
 ```ts
-      const liveCueIds = new Set(((set.cues ?? []) as { id: string }[]).map((c) => c.id));
-      const cuesToDelete = createdCueIds.filter((id) => liveCueIds.has(id));
-      if (cuesToDelete.length > 0) {
-        await deps.song.updateSong({ deleteCueIds: cuesToDelete });
-      }
+const liveCueIds = new Set(((set.cues ?? []) as { id: string }[]).map((c) => c.id));
+const cuesToDelete = createdCueIds.filter((id) => liveCueIds.has(id));
+if (cuesToDelete.length > 0) {
+  await deps.song.updateSong({ deleteCueIds: cuesToDelete });
+}
 ```
 
 (Note: `set` there is the snapshot the cleanup already fetches.)
@@ -1716,108 +1707,101 @@ In the `finally` block, after the scene/track deletion (inside the same `try`):
 Insert before the `--- contract: audio-clip note edit ---` section:
 
 ```ts
-    // --- v2 quick wins: cue points (add → rename → delete round-trip) ---
-    const cueAdd = await deps.song.updateSong({
-      addCues: [{ timeBeats: 8, name: `${NAME_PREFIX} Cue` }],
-    });
-    const cue = cueAdd.addedCues[0];
-    check("add cue point at beat 8", approx(cue?.timeBeats, 8), 8, cue?.timeBeats);
-    if (cue) {
-      createdCueIds.push(cue.id);
-      await deps.song.updateSong({
-        renameCues: [{ id: cue.id, name: `${NAME_PREFIX} Cue v2` }],
-      });
-      const renamedCue = (await deps.inspector.getSet()).cues?.find(
-        (c) => c.id === cue.id,
-      );
-      check(
-        "rename cue point",
-        renamedCue?.name === `${NAME_PREFIX} Cue v2`,
-        `${NAME_PREFIX} Cue v2`,
-        renamedCue?.name,
-      );
-      await deps.song.updateSong({ deleteCueIds: [cue.id] });
-      createdCueIds = createdCueIds.filter((id) => id !== cue.id);
-      const cueGone = !((await deps.inspector.getSet()).cues ?? []).some(
-        (c) => c.id === cue.id,
-      );
-      check("delete cue point", cueGone, "absent", cueGone ? "absent" : "present");
-    }
-    await expectError("stale cue ID -> NOT_FOUND", "NOT_FOUND", () =>
-      deps.song.updateSong({ deleteCueIds: ["q999999"] }),
-    );
+// --- v2 quick wins: cue points (add → rename → delete round-trip) ---
+const cueAdd = await deps.song.updateSong({
+  addCues: [{ timeBeats: 8, name: `${NAME_PREFIX} Cue` }],
+});
+const cue = cueAdd.addedCues[0];
+check("add cue point at beat 8", approx(cue?.timeBeats, 8), 8, cue?.timeBeats);
+if (cue) {
+  createdCueIds.push(cue.id);
+  await deps.song.updateSong({
+    renameCues: [{ id: cue.id, name: `${NAME_PREFIX} Cue v2` }],
+  });
+  const renamedCue = (await deps.inspector.getSet()).cues?.find((c) => c.id === cue.id);
+  check(
+    "rename cue point",
+    renamedCue?.name === `${NAME_PREFIX} Cue v2`,
+    `${NAME_PREFIX} Cue v2`,
+    renamedCue?.name,
+  );
+  await deps.song.updateSong({ deleteCueIds: [cue.id] });
+  createdCueIds = createdCueIds.filter((id) => id !== cue.id);
+  const cueGone = !((await deps.inspector.getSet()).cues ?? []).some(
+    (c) => c.id === cue.id,
+  );
+  check("delete cue point", cueGone, "absent", cueGone ? "absent" : "present");
+}
+await expectError("stale cue ID -> NOT_FOUND", "NOT_FOUND", () =>
+  deps.song.updateSong({ deleteCueIds: ["q999999"] }),
+);
 
-    // --- v2 quick wins: duplicate track / scene / device ---
-    const [dupTrack] = await deps.tracks.createTracks([{ duplicateOf: drums.id }]);
-    createdTrackIds.push(dupTrack.id);
-    check(
-      "duplicate track keeps source name",
-      dupTrack.name === drums.name,
-      drums.name,
-      dupTrack.name,
-    );
-    check(
-      "duplicate track copies clips",
-      dupTrack.clipCount >= 1,
-      ">= 1 clip",
-      dupTrack.clipCount,
-    );
-    const [dupScene] = await deps.tracks.createScenes(undefined, sceneA.id);
-    createdSceneIds.push(dupScene.id);
-    check(
-      "duplicate scene keeps source name",
-      dupScene.name === "Verse",
-      "Verse",
-      dupScene.name,
-    );
-    const reverbCopy = await deps.devices.duplicateDevice(reverb.id);
-    check(
-      "duplicate device -> Reverb copy",
-      reverbCopy.name === "Reverb",
-      "Reverb",
-      reverbCopy.name,
-    );
+// --- v2 quick wins: duplicate track / scene / device ---
+const [dupTrack] = await deps.tracks.createTracks([{ duplicateOf: drums.id }]);
+createdTrackIds.push(dupTrack.id);
+check(
+  "duplicate track keeps source name",
+  dupTrack.name === drums.name,
+  drums.name,
+  dupTrack.name,
+);
+check(
+  "duplicate track copies clips",
+  dupTrack.clipCount >= 1,
+  ">= 1 clip",
+  dupTrack.clipCount,
+);
+const [dupScene] = await deps.tracks.createScenes(undefined, sceneA.id);
+createdSceneIds.push(dupScene.id);
+check(
+  "duplicate scene keeps source name",
+  dupScene.name === "Verse",
+  "Verse",
+  dupScene.name,
+);
+const reverbCopy = await deps.devices.duplicateDevice(reverb.id);
+check(
+  "duplicate device -> Reverb copy",
+  reverbCopy.name === "Reverb",
+  "Reverb",
+  reverbCopy.name,
+);
 
-    // --- v2 quick wins: warp control ---
-    await expectError("warp on MIDI clip -> UNSUPPORTED", "UNSUPPORTED", () =>
-      deps.clips.updateClip(drumClip.id, { warping: false }),
-    );
+// --- v2 quick wins: warp control ---
+await expectError("warp on MIDI clip -> UNSUPPORTED", "UNSUPPORTED", () =>
+  deps.clips.updateClip(drumClip.id, { warping: false }),
+);
 
-    // --- v2 quick wins: Simpler sample ---
-    const simpler = await deps.devices.insertDevice(bass.id, "Simpler");
-    check("insert Simpler", simpler.name === "Simpler", "Simpler", simpler.name);
-    await expectError("Simpler sample on Reverb -> UNSUPPORTED", "UNSUPPORTED", () =>
-      deps.devices.setSimplerSample(reverb.id, SELF_TEST_SAMPLE),
-    );
-    try {
-      const { samplePath } = await deps.devices.setSimplerSample(
-        simpler.id,
-        SELF_TEST_SAMPLE,
-      );
-      check(
-        "Simpler sample replaced",
-        samplePath.length > 0,
-        "non-empty path",
-        samplePath,
-      );
-    } catch (err) {
-      report(
-        `SKIP: Simpler sample check — ${errText(err)}. Provide a sample at ${SELF_TEST_SAMPLE} to enable it.`,
-      );
-    }
+// --- v2 quick wins: Simpler sample ---
+const simpler = await deps.devices.insertDevice(bass.id, "Simpler");
+check("insert Simpler", simpler.name === "Simpler", "Simpler", simpler.name);
+await expectError("Simpler sample on Reverb -> UNSUPPORTED", "UNSUPPORTED", () =>
+  deps.devices.setSimplerSample(reverb.id, SELF_TEST_SAMPLE),
+);
+try {
+  const { samplePath } = await deps.devices.setSimplerSample(
+    simpler.id,
+    SELF_TEST_SAMPLE,
+  );
+  check("Simpler sample replaced", samplePath.length > 0, "non-empty path", samplePath);
+} catch (err) {
+  report(
+    `SKIP: Simpler sample check — ${errText(err)}. Provide a sample at ${SELF_TEST_SAMPLE} to enable it.`,
+  );
+}
 ```
 
 Then, inside the existing `if (audioClipId !== undefined)` block (after the note-edit `expectError`), add the audio-warp round-trip:
 
 ```ts
-      await deps.clips.updateClip(id, { warping: true, warpMode: "tones" });
-      const warped = await deps.inspector.getClip(id);
-      check(
-        "audio clip warpMode -> tones",
-        warped.warpMode === "tones",
-        "tones",
-        warped.warpMode,
-      );
+await deps.clips.updateClip(id, { warping: true, warpMode: "tones" });
+const warped = await deps.inspector.getClip(id);
+check(
+  "audio clip warpMode -> tones",
+  warped.warpMode === "tones",
+  "tones",
+  warped.warpMode,
+);
 ```
 
 - [ ] **Step 3: Run the full gate**
@@ -1858,12 +1842,12 @@ In `docs/capability-map.md`:
 - MCP exposure table: replace the last two rows with:
 
 ```markdown
-| Cue points                              | `update_song`, `get_set`                                            | v2a (implemented) |
-| Duplicate track/scene/device            | `create_tracks`, `create_scenes`, `insert_device` (`duplicateOf`)   | v2a (implemented) |
-| Audio-clip warp                         | `update_clip`, `get_clip`                                           | v2a (implemented) |
-| Simpler sample replace                  | `set_simpler_sample`, `get_device` (`samplePath`)                   | v2a (implemented) |
-| Audio render / file import              | `render_audio`, `import_file`                                       | deferred (v2c)    |
-| Take lanes, rack chains                 | —                                                                   | deferred (v2b)    |
+| Cue points | `update_song`, `get_set` | v2a (implemented) |
+| Duplicate track/scene/device | `create_tracks`, `create_scenes`, `insert_device` (`duplicateOf`) | v2a (implemented) |
+| Audio-clip warp | `update_clip`, `get_clip` | v2a (implemented) |
+| Simpler sample replace | `set_simpler_sample`, `get_device` (`samplePath`) | v2a (implemented) |
+| Audio render / file import | `render_audio`, `import_file` | deferred (v2c) |
+| Take lanes, rack chains | — | deferred (v2b) |
 ```
 
 - Update the "21-tool v1 surface" phrasing in "Runtime status" to "22-tool surface (v1 + Phase A of the v2 spec)".
