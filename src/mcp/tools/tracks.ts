@@ -6,15 +6,19 @@ export const trackTools: ToolDef[] = [
   {
     name: "create_tracks",
     description:
-      "Create one or more tracks in a single undo step. Each spec: " +
-      '{type: "midi" | "audio", name?}. Returns the created track summaries with IDs.',
+      "Create and/or duplicate tracks in a single undo step. Each spec is EITHER " +
+      '{type: "midi" | "audio", name?} (new empty track) OR {duplicateOf: trackId, ' +
+      "name?} (full copy — clips, devices, mixer — inserted right after the " +
+      "source). Returns the created track summaries with IDs.",
     inputSchema: {
       tracks: z
         .array(
-          z.object({
-            type: z.enum(["midi", "audio"]),
-            name: z.string().optional(),
-          }),
+          z.union([
+            z
+              .object({ type: z.enum(["midi", "audio"]), name: z.string().optional() })
+              .strict(),
+            z.object({ duplicateOf: z.string(), name: z.string().optional() }).strict(),
+          ]),
         )
         .min(1),
     },
@@ -55,10 +59,18 @@ export const trackTools: ToolDef[] = [
   {
     name: "create_scenes",
     description:
-      "Append N scenes (1-64) to the set. Returns the created scenes with IDs.",
-    inputSchema: { count: z.number().int().min(1).max(64) },
+      "Append N empty scenes (count 1-64), or duplicate an existing scene and its " +
+      "clips (duplicateOf, inserted right after the source; count copies N times). " +
+      "Returns the created scenes with IDs.",
+    inputSchema: {
+      count: z.number().int().min(1).max(64).optional(),
+      duplicateOf: z.string().optional(),
+    },
     handler: async (args, deps) => ({
-      scenes: await deps.tracks.createScenes(args.count as number),
+      scenes: await deps.tracks.createScenes(
+        args.count as number | undefined,
+        args.duplicateOf as string | undefined,
+      ),
     }),
   },
   {

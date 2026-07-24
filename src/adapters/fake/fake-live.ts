@@ -180,7 +180,26 @@ export class FakeLive implements LivePort {
   // -- writes ---------------------------------------------------------------
 
   async createTracks(specs: TrackSpec[]): Promise<TrackSummary[]> {
+    // Resolve every duplicate source before creating anything (all-or-nothing).
+    const sources = new Map<TrackSpec, FakeTrack>();
+    for (const spec of specs) {
+      if (spec.duplicateOf !== undefined) {
+        sources.set(spec, this.requireTrack(spec.duplicateOf));
+      }
+    }
     return specs.map((spec) => {
+      const source = sources.get(spec);
+      if (source) {
+        const copy = this.cloneTrack(source, spec.name);
+        this.tracks.splice(this.tracks.indexOf(source) + 1, 0, copy);
+        return this.summarize(copy);
+      }
+      if (spec.type === undefined) {
+        throw new PortError(
+          "INVALID_INPUT",
+          "each track spec needs exactly one of type or duplicateOf",
+        );
+      }
       const id = `t${++this.counters.track}`;
       const defaultName =
         spec.type === "midi"
@@ -215,12 +234,27 @@ export class FakeLive implements LivePort {
     this.tracks = this.tracks.filter((t) => !ids.includes(t.id));
   }
 
-  async createScenes(count: number): Promise<SceneSummary[]> {
+  async createScenes(count: number, duplicateOf?: SceneId): Promise<SceneSummary[]> {
     const created: SceneSummary[] = [];
+    if (duplicateOf === undefined) {
+      for (let i = 0; i < count; i++) {
+        const id = `s${++this.counters.scene}`;
+        const scene = { id, name: `Scene ${this.counters.scene}` };
+        this.scenes.push(scene);
+        created.push({ ...scene });
+      }
+      return created;
+    }
+    const source = this.requireScene(duplicateOf);
     for (let i = 0; i < count; i++) {
       const id = `s${++this.counters.scene}`;
-      const scene = { id, name: `Scene ${this.counters.scene}` };
-      this.scenes.push(scene);
+      // Live keeps the source name on duplicate (pinned by self-test).
+      const scene = { id, name: source.name };
+      this.scenes.splice(this.scenes.indexOf(source) + 1 + i, 0, scene);
+      for (const track of this.tracks) {
+        const clip = track.clips.get(source.id);
+        if (clip) track.clips.set(id, this.cloneClip(clip));
+      }
       created.push({ ...scene });
     }
     return created;
@@ -305,6 +339,14 @@ export class FakeLive implements LivePort {
     };
     track.devices.splice(at, 0, device);
     return await this.getDevice(device.id);
+  }
+
+  async duplicateDevice(id: DeviceId): Promise<DeviceDetail> {
+    const found = this.findDevice(id);
+    if (!found) throw PortError.notFound("device", id);
+    const copy = this.cloneDevice(found.device);
+    found.track.devices.splice(found.track.devices.indexOf(found.device) + 1, 0, copy);
+    return await this.getDevice(copy.id);
   }
 
   async setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void> {
@@ -489,6 +531,42 @@ export class FakeLive implements LivePort {
     return notes.map(
       (n) => (n.length === 5 ? [n[0], n[1], n[2], n[3], { ...n[4] }] : [...n]) as Note,
     );
+  }
+
+  private cloneClip(clip: FakeClip): FakeClip {
+    return { ...clip, id: this.mintClipId(), notes: this.cloneNotes(clip.notes) };
+  }
+
+  private cloneDevice(device: FakeDevice): FakeDevice {
+    return {
+      ...device,
+      id: `d${++this.counters.device}`,
+      params: device.params.map((p) => ({
+        ...p,
+        valueItems: p.valueItems ? [...p.valueItems] : undefined,
+      })),
+    };
+  }
+
+  private cloneTrack(source: FakeTrack, name?: string): FakeTrack {
+    const clips = new Map<SceneId, FakeClip>();
+    for (const [sceneId, clip] of source.clips) clips.set(sceneId, this.cloneClip(clip));
+    return {
+      id: `t${++this.counters.track}`,
+      // Live keeps the source name on duplicate (pinned by self-test).
+      name: name ?? source.name,
+      type: source.type,
+      muted: source.muted,
+      soloed: source.soloed,
+      armed: source.armed,
+      clips,
+      devices: source.devices.map((d) => this.cloneDevice(d)),
+      mixer: {
+        volume: source.mixer.volume,
+        pan: source.mixer.pan,
+        sends: new Map(source.mixer.sends),
+      },
+    };
   }
 
   private summarize(track: FakeTrack): TrackSummary {

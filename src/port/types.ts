@@ -24,8 +24,11 @@ export type Note =
   [number, number, number, number] | [number, number, number, number, NoteExtras];
 
 export interface TrackSpec {
-  type: TrackType;
+  /** Exactly one of type | duplicateOf (validated in TrackService). */
+  type?: TrackType;
   name?: string;
+  /** Duplicate this track (with its clips/devices); inserted after it. */
+  duplicateOf?: TrackId;
 }
 
 export interface TrackPatch {

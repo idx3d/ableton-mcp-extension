@@ -16,6 +16,11 @@ export class DeviceService {
     );
   }
 
+  async duplicateDevice(deviceId: DeviceId): Promise<DeviceDetail> {
+    await this.live.getDevice(deviceId); // fail fast on stale ID
+    return this.live.transact("insert_device", () => this.live.duplicateDevice(deviceId));
+  }
+
   async setParams(
     deviceId: DeviceId,
     params: Record<string, number>,
