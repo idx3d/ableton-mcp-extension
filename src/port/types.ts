@@ -132,11 +132,18 @@ export interface SetSnapshot {
 
 export type ClipKind = "midi" | "audio";
 
+/** Live's warp algorithms (audio clips). Mirrors the SDK WarpMode enum. */
+export type WarpMode =
+  "beats" | "tones" | "texture" | "repitch" | "complex" | "complexPro";
+
 export interface ClipPatch {
   name?: string;
   looping?: boolean;
   /** Hex "#RRGGBB" */
   color?: string;
+  /** Audio clips only — UNSUPPORTED on MIDI clips. */
+  warping?: boolean;
+  warpMode?: WarpMode;
 }
 
 export interface ScenePatch {
@@ -171,4 +178,7 @@ export interface ClipDetail extends ClipSummary {
   notes: Note[];
   /** Audio clips only. */
   filePath?: string;
+  /** Audio clips only. */
+  warping?: boolean;
+  warpMode?: WarpMode;
 }

@@ -117,7 +117,7 @@ export class ClipEditor {
       throw new PortError(
         "INVALID_INPUT",
         "patch must not be empty",
-        "Provide at least one of: name, looping, color.",
+        "Provide at least one of: name, looping, color, warping, warpMode.",
       );
     }
     if (patch.color !== undefined && !COLOR_RE.test(patch.color)) {

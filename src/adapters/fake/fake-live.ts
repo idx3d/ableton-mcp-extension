@@ -26,6 +26,7 @@ import type {
   TrackSpec,
   TrackSummary,
   UpdateSongResult,
+  WarpMode,
 } from "../../port/types.js";
 
 interface FakeClip {
@@ -37,6 +38,9 @@ interface FakeClip {
   color?: string;
   /** audio clips only */
   filePath?: string;
+  /** audio clips only */
+  warping?: boolean;
+  warpMode?: WarpMode;
   notes: Note[];
 }
 
@@ -160,6 +164,8 @@ export class FakeLive implements LivePort {
       sceneId,
       notes: this.cloneNotes(clip.notes),
       ...(clip.filePath !== undefined ? { filePath: clip.filePath } : {}),
+      ...(clip.warping !== undefined ? { warping: clip.warping } : {}),
+      ...(clip.warpMode !== undefined ? { warpMode: clip.warpMode } : {}),
     };
   }
 
@@ -471,6 +477,10 @@ export class FakeLive implements LivePort {
       lengthBeats: 4,
       looping: true,
       filePath,
+      // Real-Live defaults for a freshly created warped clip; pinned by the
+      // self-test contract checks.
+      warping: true,
+      warpMode: "beats",
       notes: [],
     };
     track.clips.set(sceneId, clip);
@@ -480,9 +490,21 @@ export class FakeLive implements LivePort {
   async updateClip(id: ClipId, patch: ClipPatch): Promise<void> {
     const found = this.findClip(id);
     if (!found) throw PortError.notFound("clip", id);
+    if (
+      (patch.warping !== undefined || patch.warpMode !== undefined) &&
+      found.clip.kind !== "audio"
+    ) {
+      throw new PortError(
+        "UNSUPPORTED",
+        `clip ${id} is a MIDI clip`,
+        "warping and warpMode apply to audio clips only.",
+      );
+    }
     if (patch.name !== undefined) found.clip.name = patch.name;
     if (patch.looping !== undefined) found.clip.looping = patch.looping;
     if (patch.color !== undefined) found.clip.color = patch.color;
+    if (patch.warping !== undefined) found.clip.warping = patch.warping;
+    if (patch.warpMode !== undefined) found.clip.warpMode = patch.warpMode;
   }
 
   async deleteClips(ids: ClipId[]): Promise<void> {
