@@ -29,7 +29,12 @@ import { runSelfTest, type SelfTestResult } from "./shell/self-test.js";
 import { AuditLog } from "./shell/audit-log.js";
 import { loadOrCreateConfig } from "./shell/config.js";
 import { writeConnectionFile } from "./shell/connection-file.js";
-import { buildSelfTestResultUrl, buildStatusDialogUrl } from "./shell/status-dialog.js";
+import { LogBuffer } from "./shell/log-buffer.js";
+import {
+  buildLogsDialogUrl,
+  buildSelfTestResultUrl,
+  buildStatusDialogUrl,
+} from "./shell/status-dialog.js";
 
 const COMMAND_ID = "ableton-mcp.show-status";
 const CONTEXT_MENU_TITLE = "Ableton MCP: Status…";
@@ -43,6 +48,11 @@ const DIALOG_HEIGHT = 560;
  */
 export async function activate(activation: ActivationContext): Promise<void> {
   try {
+    // Install console capture first so the Logs screen sees every event from
+    // here on (server start, errors, …). It still forwards to ExtensionHost.txt.
+    const logs = new LogBuffer();
+    logs.install();
+
     const context = initialize(activation, "1.0.0");
 
     // storageDirectory may be undefined (docs/sdk-notes.md §11); prefer it,
@@ -74,7 +84,15 @@ export async function activate(activation: ActivationContext): Promise<void> {
       port: config.port,
       token: config.token,
       createServer: () =>
-        createMcpServer(deps, { onToolResult: (report) => audit.record(report) }),
+        createMcpServer(deps, {
+          onToolResult: (report) => {
+            audit.record(report);
+            logs.push(
+              "tool",
+              `${report.tool} ${report.ok ? "ok" : (report.code ?? "error")} ${Math.round(report.durationMs)}ms`,
+            );
+          },
+        }),
     });
 
     console.log(`[ableton-mcp] MCP server running at ${server.url}`);
@@ -90,21 +108,45 @@ export async function activate(activation: ActivationContext): Promise<void> {
 
     context.commands.registerCommand(COMMAND_ID, () => {
       // Commands are synchronous/void; run the async dialog flow detached and
-      // swallow its errors so the host never sees a rejected promise.
+      // swallow its errors so the host never sees a rejected promise. Each screen
+      // is its own modal that resolves with an action string; this loop routes
+      // between them until the user closes.
       void (async () => {
         try {
-          const dialogUrl = buildStatusDialogUrl({
-            url: server.url,
-            token: config.token,
-            entries: audit.recent(10),
-          });
-          const result = await context.ui.showModalDialog(
-            dialogUrl,
-            DIALOG_WIDTH,
-            DIALOG_HEIGHT,
-          );
-          if (result === "selftest") {
-            await runSelfTestFlow(context, deps, storageDir);
+          let screen: "status" | "logs" = "status";
+          for (;;) {
+            if (screen === "logs") {
+              const action = await context.ui.showModalDialog(
+                buildLogsDialogUrl(logs.recent(200)),
+                DIALOG_WIDTH,
+                DIALOG_HEIGHT,
+              );
+              if (action === "refresh") continue;
+              if (action === "back") {
+                screen = "status";
+                continue;
+              }
+              break; // "close"
+            }
+
+            const action = await context.ui.showModalDialog(
+              buildStatusDialogUrl({
+                url: server.url,
+                token: config.token,
+                entries: audit.recent(10),
+              }),
+              DIALOG_WIDTH,
+              DIALOG_HEIGHT,
+            );
+            if (action === "selftest") {
+              await runSelfTestFlow(context, deps, storageDir);
+              continue; // back to the status screen
+            }
+            if (action === "logs") {
+              screen = "logs";
+              continue;
+            }
+            break; // "close"
           }
         } catch (err) {
           console.error("[ableton-mcp] status dialog error:", err);
