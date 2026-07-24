@@ -3,6 +3,7 @@ export type SceneId = string; // "s1", ...
 export type ClipId = string; // "c1", ...
 export type DeviceId = string; // "d1", ... minted per session
 export type ReturnTrackId = string; // "r1", ...
+export type CueId = string; // "q1", ... minted per session ("c" is taken by clips)
 
 export type TrackType = "midi" | "audio";
 
@@ -34,8 +35,23 @@ export interface TrackPatch {
   armed?: boolean;
 }
 
+/** An arrangement cue point (locator). time is immutable in API 1.0.0. */
+export interface CueRef {
+  id: CueId;
+  name: string;
+  timeBeats: number;
+}
+
+export interface UpdateSongResult {
+  /** Minted refs for cues created by addCues; empty when none were added. */
+  addedCues: CueRef[];
+}
+
 export interface SongPatch {
   tempo?: number;
+  addCues?: Array<{ timeBeats: number; name?: string }>;
+  renameCues?: Array<{ id: CueId; name: string }>;
+  deleteCueIds?: CueId[];
 }
 
 /** A single device parameter with its current Live-internal raw value. */
@@ -107,6 +123,8 @@ export interface SetSnapshot {
   tracks: TrackSummary[];
   scenes: SceneSummary[];
   returnTracks: ReturnTrackSummary[];
+  /** Present only when the set has cue points; sorted by timeBeats. */
+  cues?: CueRef[];
 }
 
 export type ClipKind = "midi" | "audio";

@@ -16,6 +16,7 @@ import type {
   TrackPatch,
   TrackSpec,
   TrackSummary,
+  UpdateSongResult,
 } from "./types.js";
 
 /**
@@ -61,7 +62,7 @@ export interface LivePort {
   setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void>;
   deleteDevice(id: DeviceId): Promise<void>;
   setMixer(trackId: TrackId, patch: MixerPatch): Promise<void>;
-  updateSong(patch: SongPatch): Promise<void>;
+  updateSong(patch: SongPatch): Promise<UpdateSongResult>;
 
   /** Group all writes inside fn into one undo step named undoLabel. */
   transact<T>(undoLabel: string, fn: () => Promise<T>): Promise<T>;

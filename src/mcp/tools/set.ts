@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SongPatch } from "../../port/types.js";
 import type { ToolDef } from "./types.js";
 
 export const setTools: ToolDef[] = [
@@ -7,7 +8,7 @@ export const setTools: ToolDef[] = [
     description:
       "Compact overview of the open Live set: tempo, scale, tracks (one line each: " +
       "id, name, type, devices, clip count) and scenes. Call this first to obtain IDs; " +
-      "drill down with get_track / get_clip.",
+      "drill down with get_track / get_clip. Includes arrangement cue points (cues) when present.",
     inputSchema: {},
     handler: async (_args, deps) => ({ set: await deps.inspector.getSet() }),
   },
@@ -33,11 +34,44 @@ export const setTools: ToolDef[] = [
   },
   {
     name: "update_song",
-    description: "Update song-level settings. Currently: tempo (20-999 BPM).",
-    inputSchema: { tempo: z.number().optional() },
+    description:
+      "Update song-level settings in one undo step: tempo (20-999 BPM) and " +
+      "arrangement cue points. addCues creates locators at beat positions; " +
+      "renameCues / deleteCueIds edit existing ones by ID (batch, all-or-nothing). " +
+      "Cue time is fixed at creation — the Ableton API cannot move a cue; delete " +
+      "and re-add instead. Returns minted IDs for added cues.",
+    inputSchema: {
+      tempo: z.number().optional(),
+      addCues: z
+        .array(z.object({ timeBeats: z.number().min(0), name: z.string().optional() }))
+        .min(1)
+        .optional(),
+      renameCues: z
+        .array(z.object({ id: z.string(), name: z.string().min(1) }))
+        .min(1)
+        .optional(),
+      deleteCueIds: z.array(z.string()).min(1).optional(),
+    },
     handler: async (args, deps) => {
-      await deps.song.updateSong({ tempo: args.tempo as number | undefined });
-      return { song: { tempo: (args.tempo as number | undefined) ?? null } };
+      const patch = {
+        ...(args.tempo !== undefined ? { tempo: args.tempo as number } : {}),
+        ...(args.addCues !== undefined
+          ? { addCues: args.addCues as SongPatch["addCues"] }
+          : {}),
+        ...(args.renameCues !== undefined
+          ? { renameCues: args.renameCues as SongPatch["renameCues"] }
+          : {}),
+        ...(args.deleteCueIds !== undefined
+          ? { deleteCueIds: args.deleteCueIds as string[] }
+          : {}),
+      } satisfies SongPatch;
+      const result = await deps.song.updateSong(patch);
+      return {
+        song: { tempo: (args.tempo as number | undefined) ?? null },
+        ...(result.addedCues.length > 0 ? { addedCues: result.addedCues } : {}),
+        ...(patch.renameCues ? { renamedCueIds: patch.renameCues.map((r) => r.id) } : {}),
+        ...(patch.deleteCueIds ? { deletedCueIds: patch.deleteCueIds } : {}),
+      };
     },
   },
 ];

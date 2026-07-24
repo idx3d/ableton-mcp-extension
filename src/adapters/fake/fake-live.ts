@@ -5,6 +5,8 @@ import type {
   ClipId,
   ClipKind,
   ClipPatch,
+  CueId,
+  CueRef,
   DeviceDetail,
   DeviceId,
   DeviceParam,
@@ -23,6 +25,7 @@ import type {
   TrackPatch,
   TrackSpec,
   TrackSummary,
+  UpdateSongResult,
 } from "../../port/types.js";
 
 interface FakeClip {
@@ -67,6 +70,12 @@ interface FakeScene {
   name: string;
 }
 
+interface FakeCue {
+  id: CueId;
+  name: string;
+  timeBeats: number;
+}
+
 /**
  * Deliberately tiny stand-in for Live's built-in device library — enough
  * surface for realistic tests. Real-Live name acceptance is pinned by the
@@ -106,11 +115,12 @@ export class FakeLive implements LivePort {
   private tempo = 120;
   private scaleName = "Major";
   private rootNote = 0;
-  private counters = { track: 0, scene: 0, clip: 0, device: 0 };
+  private counters = { track: 0, scene: 0, clip: 0, device: 0, cue: 0 };
   private returnTracks: ReturnTrackSummary[] = [
     { id: "r1", name: "A-Reverb" },
     { id: "r2", name: "B-Delay" },
   ];
+  private cues: FakeCue[] = [];
   readonly undoSteps: string[] = [];
 
   // -- reads ----------------------------------------------------------------
@@ -123,6 +133,7 @@ export class FakeLive implements LivePort {
       tracks: this.tracks.map((t) => this.summarize(t)),
       scenes: this.scenes.map((s) => ({ ...s })),
       returnTracks: this.returnTracks.map((r) => ({ ...r })),
+      ...(this.cues.length > 0 ? { cues: this.cues.map((c) => ({ ...c })) } : {}),
     };
   }
 
@@ -346,8 +357,37 @@ export class FakeLive implements LivePort {
     }
   }
 
-  async updateSong(patch: SongPatch): Promise<void> {
+  async updateSong(patch: SongPatch): Promise<UpdateSongResult> {
+    // Validate every referenced cue before any mutation (all-or-nothing).
+    const requireCue = (id: CueId): FakeCue => {
+      const cue = this.cues.find((c) => c.id === id);
+      if (!cue) throw PortError.notFound("cue point", id);
+      return cue;
+    };
+    const renames = (patch.renameCues ?? []).map((r) => ({
+      cue: requireCue(r.id),
+      name: r.name,
+    }));
+    const deletes = patch.deleteCueIds ?? [];
+    for (const id of deletes) requireCue(id);
+
     if (patch.tempo !== undefined) this.tempo = patch.tempo;
+    for (const { cue, name } of renames) cue.name = name;
+    if (deletes.length > 0) this.cues = this.cues.filter((c) => !deletes.includes(c.id));
+    const addedCues: CueRef[] = (patch.addCues ?? []).map((add) => {
+      const cue: FakeCue = {
+        id: `q${++this.counters.cue}`,
+        // Real Live derives a default locator name from the position; the
+        // fake's placeholder is pinned by the self-test contract checks.
+        name: add.name ?? `Cue ${this.counters.cue}`,
+        timeBeats: add.timeBeats,
+      };
+      this.cues.push(cue);
+      return { ...cue };
+    });
+    // Live presents cue points in time order (verify in-Live via self-test).
+    this.cues.sort((a, b) => a.timeBeats - b.timeBeats);
+    return { addedCues };
   }
 
   async createAudioClip(
