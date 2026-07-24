@@ -75,6 +75,11 @@ export async function startHttpServer(opts: HttpOptions): Promise<RunningHttpSer
         const mcpServer = opts.createServer();
         const transport = new NodeHttpStatelessTransport(res);
         res.on("close", () => {
+          // Closing the transport settles its pending promise if the client
+          // aborted before a reply (otherwise handleHttpRequest below hangs).
+          transport
+            .close()
+            .catch((err) => console.error("[ableton-mcp] transport close error:", err));
           mcpServer
             .close()
             .catch((err) => console.error("[ableton-mcp] server close error:", err));
