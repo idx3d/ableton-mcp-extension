@@ -1,26 +1,11 @@
 import { writeFileSync } from "node:fs";
 import { build } from "esbuild";
+import { bridgeBuildOptions, extensionBuildOptions } from "./scripts/build-config.js";
 
-await build({
-  entryPoints: ["src/extension.ts"],
-  outfile: "dist/extension.js",
-  bundle: true,
-  format: "cjs",
-  platform: "node",
-  sourcemap: process.argv.includes("--dev"),
-  minify: !process.argv.includes("--dev"),
-});
+const dev = process.argv.includes("--dev");
 
-await build({
-  entryPoints: ["src/bridge/main.ts"],
-  outfile: "dist/bridge.cjs",
-  bundle: true,
-  format: "cjs",
-  platform: "node",
-  banner: { js: "#!/usr/bin/env node" },
-  sourcemap: process.argv.includes("--dev"),
-  minify: !process.argv.includes("--dev"),
-});
+await build(extensionBuildOptions(dev));
+await build(bridgeBuildOptions(dev));
 
 // package.json declares "type": "module" (this repo is ESM-first), so Node's
 // require() would otherwise resolve dist/extension.js's module type by
