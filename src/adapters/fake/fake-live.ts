@@ -191,6 +191,10 @@ export class FakeLive implements LivePort {
       const source = sources.get(spec);
       if (source) {
         const copy = this.cloneTrack(source, spec.name);
+        // Always splice immediately after the source (not after the previous
+        // copy): repeated duplicateOf specs targeting the same source land in
+        // reverse order, matching Song.duplicateTrack ("inserted immediately
+        // after the original") in real Live.
         this.tracks.splice(this.tracks.indexOf(source) + 1, 0, copy);
         return this.summarize(copy);
       }
@@ -250,7 +254,11 @@ export class FakeLive implements LivePort {
       const id = `s${++this.counters.scene}`;
       // Live keeps the source name on duplicate (pinned by self-test).
       const scene = { id, name: source.name };
-      this.scenes.splice(this.scenes.indexOf(source) + 1 + i, 0, scene);
+      // Always splice immediately after the source (not after the previous
+      // copy): N duplicates of one source land in reverse order, matching
+      // Song.duplicateScene ("inserted immediately after the original") in
+      // real Live.
+      this.scenes.splice(this.scenes.indexOf(source) + 1, 0, scene);
       for (const track of this.tracks) {
         const clip = track.clips.get(source.id);
         if (clip) track.clips.set(id, this.cloneClip(clip));

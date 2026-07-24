@@ -33,12 +33,59 @@ describe("FakeLive duplicate", () => {
     expect((await fake.getSet()).tracks).toHaveLength(2);
   });
 
+  it("two duplicateOf specs targeting the same source land in reverse order", async () => {
+    // Each copy is spliced immediately after the source (matching real Live's
+    // Song.duplicateTrack), so batch-duplicating one source twice yields the
+    // second copy before the first.
+    const [copy1, copy2] = await fake.createTracks([
+      { duplicateOf: "t1" },
+      { duplicateOf: "t1" },
+    ]);
+    expect(copy1.id).toBe("t3");
+    expect(copy2.id).toBe("t4");
+    expect((await fake.getSet()).tracks.map((t) => t.id)).toEqual([
+      "t1",
+      "t4",
+      "t3",
+      "t2",
+    ]);
+  });
+
+  it("duplicates alongside a plain create in the same batch", async () => {
+    const created = await fake.createTracks([
+      { type: "midi", name: "Bass" },
+      { duplicateOf: "t1" },
+    ]);
+    expect(created).toHaveLength(2);
+    expect((await fake.getSet()).tracks.map((t) => t.id)).toEqual([
+      "t1",
+      "t4",
+      "t2",
+      "t3",
+    ]);
+  });
+
   it("duplicates a scene with its clips, inserted after the source", async () => {
     const [copy] = await fake.createScenes(1, "s1");
     expect(copy).toEqual({ id: "s3", name: "Scene 1" });
     expect((await fake.getSet()).scenes.map((s) => s.id)).toEqual(["s1", "s3", "s2"]);
     const slot = (await fake.getTrack("t1")).slots.find((s) => s.sceneId === "s3");
     expect(slot?.clip?.name).toBe("Beat");
+  });
+
+  it("three duplicates of one scene land in reverse order", async () => {
+    // Each copy is spliced immediately after the source (matching real Live's
+    // Song.duplicateScene), so N duplicates of one source land in reverse
+    // creation order.
+    const created = await fake.createScenes(3, "s1");
+    expect(created.map((s) => s.id)).toEqual(["s3", "s4", "s5"]);
+    expect((await fake.getSet()).scenes.map((s) => s.id)).toEqual([
+      "s1",
+      "s5",
+      "s4",
+      "s3",
+      "s2",
+    ]);
   });
 
   it("duplicates a device after the original", async () => {
