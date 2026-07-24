@@ -17,6 +17,12 @@ async function bigFixture(): Promise<FakeLive> {
       ]);
     }
   }
+  await fake.updateSong({
+    addCues: Array.from({ length: 10 }, (_, i) => ({
+      timeBeats: i * 16,
+      name: `Section ${i + 1}`,
+    })),
+  });
   return fake;
 }
 
@@ -32,6 +38,7 @@ describe("token economy budgets (P0)", () => {
   it("get_set on a 50-track / 8-scene / 200-clip set stays under 8 KB", async () => {
     const { bytes, payload } = await callTool(stack.client, "get_set");
     expect(payload.set.tracks).toHaveLength(50);
+    expect(payload.set.cues).toHaveLength(10);
     expect(bytes).toBeLessThan(8192);
   });
 
