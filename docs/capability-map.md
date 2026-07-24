@@ -29,19 +29,33 @@ playbook in the design spec).
 - **Handles**: opaque bigint IDs, session-stable, resolvable via
   `getObjectFromHandle`; throw when the entity is deleted.
 - **Filesystem**: restricted to `storageDirectory` + `tempDirectory`; external files
-  enter via `resources.importIntoProject`.
-- **Runtime**: full Node.js ≥ 24.14.1, single bundled CJS entry file; outbound
-  `fetch` supported; inbound servers undocumented (works, not endorsed — see
-  ADR 0002).
+  enter via `resources.importIntoProject`. Writes elsewhere throw `ERR_ACCESS_DENIED`
+  (verified in-Live) — an external process cannot rely on the extension dropping a
+  file at a shared path.
+- **Runtime** (corrected by the 2026-07-24 in-Live smoke — see
+  [ADR 0009](decisions/0009-real-extension-host-runtime.md)): Node 24.14.1 engine, but
+  the bundle runs in a **stripped `vm` context**, NOT full Node. It provides `fetch`,
+  `AbortController`, `Buffer`, `process`, `console`, `require`, timers — and NONE of
+  `global`, `URL`, `TextEncoder`/`TextDecoder`, `crypto`, `Request`/`Response`/`Headers`,
+  `ReadableStream`, `Blob`, `Event`/`EventTarget`. `node:` builtins ARE requirable.
+  Consequences: esbuild `define: { global: "globalThis" }`; a host-globals prelude
+  installs the missing web globals from `node:` builtins; the MCP HTTP server uses a
+  custom `node:http` transport (`src/mcp/node-http-transport.ts`), not the SDK's
+  hono-based `StreamableHTTPServerTransport`. Single bundled CJS entry; outbound `fetch`
+  works; inbound `node:http` server works (ADR 0002).
+- **BigInt marshalling**: integer-domain SDK getters typed `number` (`Clip.color`,
+  `Song.rootNote`, MIDI pitch/velocity, marker positions, …) return `bigint` at runtime
+  in real Live. The adapter coerces every such read via `codec.ts` `toNumber` (ADR 0009).
 - **Explicit SDK non-goals**: real-time audio, MIDI routing, drawing into Live's UI,
   background/persistent extensions, control surfaces.
 
 ## Runtime status
 
 The full **21-tool v1 surface is implemented** (see the exposure table below) and
-green in CI against FakeLive. **In-Live validation is pending** the Live beta
-install: an in-Live self-test runner (`src/shell/self-test.ts`) replays the
-component scenarios plus the FakeLive-vs-Live contract checks against the real SDK
+green in CI against FakeLive. **In-Live validation: macOS PASSED** (Live 12.4.5b8,
+2026-07-24 — self-test 20/20, 0 failed) after the ADR 0009 fixes; **Windows pending**
+before tagging v0.1.0. The in-Live self-test runner (`src/shell/self-test.ts`) replays
+the component scenarios plus the FakeLive-vs-Live contract checks against the real SDK
 adapter — run it via the status dialog's "Run self-test" button. See
 [`smoke-runbook.md`](smoke-runbook.md) for the procedure and the release gate.
 

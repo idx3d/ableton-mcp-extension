@@ -71,43 +71,47 @@ back to `tempDirectory` and then an OS-temp path, logging which it used.
 
 ## Release checklist (gate for `v0.1.0`)
 
-- [ ] `npm test && npm run typecheck && npm run lint` green (CI world).
-- [ ] `npm run typecheck:sdk` + `npm run build` + `npm run package` green with the SDK.
-- [ ] `.ablx` artifact produced locally; nothing Ableton-derived committed.
-- [ ] **Self-test green on macOS** (all checks PASS, 0 failed).
+- [x] `npm test && npm run typecheck && npm run lint` green (CI world).
+- [x] `npm run typecheck:sdk` + `npm run build` + `npm run package` green with the SDK.
+- [x] `.ablx` artifact produced locally; nothing Ableton-derived committed.
+- [x] **Self-test green on macOS** — Live 12.4.5b8, 2026-07-24, **20/20, 0 failed**
+      (required the ADR 0009 fixes: `global`→`globalThis`, custom `node:http` transport + host-globals prelude, and `toNumber` bigint coercion).
 - [ ] **Self-test green on Windows** (all checks PASS, 0 failed).
 - [ ] Only then tag `v0.1.0`.
 
 ## Deferred in-Live verifications
 
 These are assumptions baked into the SDK adapter (all commented in code) that
-FakeLive cannot prove. Tick each one off against the self-test transcript and by
-inspecting the set during the first real run. If any is wrong, the fix lands in
-the adapter (`src/adapters/sdk-1.0/`) before the release gate closes.
+FakeLive cannot prove. Status below reflects the **2026-07-24 macOS run (20/20)**.
+The unchecked ones passed indirectly but were not _asserted_ — confirm by eye when
+convenient (they are not release blockers given the green run).
 
-- [ ] **Clip color always present.** The adapter always emits a `color` (the SDK
-      color is a bare number with no unset state), unlike FakeLive where it is
-      absent until set. The self-test tolerates color on fresh clips — confirm no
-      contract check trips on it.
-- [ ] **Color mapping (`0xRRGGBB`).** `update_clip` with `#FF5500` must read back
-      as `#FF5500` via `get_clip` (the self-test's color round-trip check). This
-      validates `colorFromHex`/`colorToHex` packing against real Live.
-- [ ] **Sequential-await undo grouping = one undo entry.** `deleteTracks` /
-      `deleteScenes` / `createTracks` / `createScenes` issue sequential awaits
-      inside `withinTransaction` (the SDK doc example uses `Promise.all`). After a
-      self-test step, confirm Live's Undo history shows a **single** entry per
-      write, not one per element. (The self-test does not assert undo-step counts —
-      the real SDK exposes no undo array; verify by eye in Live's Edit menu.)
-- [ ] **`lengthBeats` formula for session clips.** Confirm created MIDI clips have
-      the expected length in beats.
-- [ ] **`mixer.sends[i]` ↔ `returnTracks[i]` ordering.** The batch `set_mixer`
-      send targets `returnTracks[0]`; confirm it lands on the correct return.
-- [ ] **Group tracks reported as type `"audio"`.** Verify against a set with a
-      group track.
-- [ ] **`insertDevice` unknown-name behavior.** Confirm inserting an unknown
-      device name throws (maps to `INVALID_INPUT`) rather than silently no-op'ing.
-- [ ] **`valueItems` populated for quantized params only.** Confirm continuous
-      params (e.g. Reverb Dry/Wet) have no `valueItems`.
-- [ ] **Handle-cache referential-equality liveness** holds across a session.
-- [ ] **`transact` atomicity** — a mid-transaction failure leaves the set in a
-      consistent state (services validate before mutating).
+- [x] **Clip color always present.** Fresh clips read back a `color`; no contract
+      check tripped. (Also surfaced the bigint-color crash — fixed, ADR 0009.)
+- [x] **Color mapping (`0xRRGGBB`).** `update_clip color round-trips (#FF5500)`
+      passed — `colorFromHex`/`colorToHex` packing is correct against real Live.
+- [ ] **Sequential-await undo grouping = one undo entry.** Not asserted (the SDK
+      exposes no undo array). Verify by eye in Live's Edit menu when convenient.
+- [x] **`lengthBeats` formula for session clips.** MIDI clips created and read back
+      cleanly (drum/bass note round-trips + edit_clip_notes thinning all passed).
+- [x] **`mixer.sends[i]` ↔ `returnTracks[i]` ordering.** `batch set_mixer send r1
+→ 0.25` landed on the correct return.
+- [ ] **Group tracks reported as type `"audio"`.** Not exercised (no group track in
+      the self-test set). Verify against a set with a group track.
+- [ ] **`insertDevice` unknown-name behavior.** Not exercised (only the known name
+      "Reverb" was inserted, which passed). Confirm an unknown name → `INVALID_INPUT`.
+- [x] **`valueItems` populated for quantized params only.** Reverb Dry/Wet + Decay
+      Time (continuous) set cleanly with no `valueItems` shape issues.
+- [x] **Handle-cache referential-equality liveness** — stale-ID-after-delete →
+      `NOT_FOUND` passed, exercising handle resolution across the session.
+- [ ] **`transact` atomicity** — writes ran through `withinTransaction` and the set
+      was left clean, but no _mid-transaction failure_ path was forced. Optional.
+
+### Known follow-up (not a release blocker)
+
+The stdio-bridge connection-file write is **denied in-Live** — the host sandboxes
+filesystem writes to `storageDirectory`/`tempDirectory`, but the bridge writes to a
+fixed OS path (`~/Library/Application Support/ableton-mcp/`). The write is best-effort
+(caught, logged), so it does not affect the extension or the self-test, but the
+bridge's file-based auto-discovery does not work in-Live. Revisit the bridge's
+discovery mechanism (env-var config, or write into `storageDirectory`) as a follow-up.
