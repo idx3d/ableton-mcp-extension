@@ -417,8 +417,11 @@ export class FakeLive implements LivePort {
         "set_simpler_sample only works on Simpler devices (see get_track for names).",
       );
     }
-    // FakeLive cannot check the file exists; real Live throws (mapped to
-    // NOT_FOUND by the SdkAdapter) — pinned by the self-test contract checks.
+    // FakeLive cannot check the file exists; real Live is ASSUMED to throw
+    // (mapped to NOT_FOUND by the SdkAdapter). Nothing can pin this: the
+    // self-test's Simpler check degrades to SKIP when the sample is missing,
+    // which is exactly the case that would exercise it. Listed under
+    // "Deferred in-Live verifications" in docs/smoke-runbook.md.
     found.device.samplePath = filePath;
     return { samplePath: filePath };
   }
@@ -457,8 +460,11 @@ export class FakeLive implements LivePort {
     const addedCues: CueRef[] = (patch.addCues ?? []).map((add) => {
       const cue: FakeCue = {
         id: `q${++this.counters.cue}`,
-        // Real Live derives a default locator name from the position; the
-        // fake's placeholder is pinned by the self-test contract checks.
+        // Real Live derives a default locator name from the position; this
+        // "Cue N" placeholder is a known divergence. The self-test adds one
+        // unnamed cue and REPORTS the name it gets back (an observation, not
+        // an assertion — the two cannot agree), so an in-Live run records
+        // Live's actual default.
         name: add.name ?? `Cue ${this.counters.cue}`,
         timeBeats: add.timeBeats,
       };
@@ -501,8 +507,10 @@ export class FakeLive implements LivePort {
       lengthBeats: 4,
       looping: true,
       filePath,
-      // Real-Live defaults for a freshly created warped clip; pinned by the
-      // self-test contract checks.
+      // Assumed real-Live defaults for a freshly created warped clip. The
+      // self-test reads a fresh audio clip's warp state BEFORE writing to it
+      // and reports what it saw, so an in-Live run either confirms these or
+      // records the real defaults.
       warping: true,
       warpMode: "beats",
       notes: [],

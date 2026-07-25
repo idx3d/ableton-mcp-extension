@@ -38,6 +38,13 @@ describe("v2 quick wins (component)", () => {
       deletedCueIds: [intro.id],
     });
 
+    // Re-read rather than trusting the echoed request: assert the rename and the
+    // delete actually landed in the set.
+    const after = await callTool(stack.client, "get_set");
+    expect(after.payload.set.cues).toEqual([
+      expect.objectContaining({ id: second.id, name: "Drop", timeBeats: 32 }),
+    ]);
+
     const bad = await callTool(stack.client, "update_song", {
       deleteCueIds: ["q99"],
     });
@@ -56,6 +63,23 @@ describe("v2 quick wins (component)", () => {
     });
     expect(dup.payload.ok).toBe(true);
     expect(dup.payload.tracks[0]).toMatchObject({ name: "Drums", clipCount: 1 });
+  });
+
+  it("returns a coded envelope for create_tracks specs that are not exactly one of type/duplicateOf", async () => {
+    // The schema is deliberately loose so TrackService's rule — not zod — is
+    // what the client sees; both mistakes must reach the {ok:false,...} envelope
+    // rather than a raw MCP -32602 protocol error.
+    const both = await callTool(stack.client, "create_tracks", {
+      tracks: [{ type: "midi", duplicateOf: "t1" }],
+    });
+    expect(both.payload).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    expect(both.payload.message).toContain("exactly one of type or duplicateOf");
+
+    const neither = await callTool(stack.client, "create_tracks", {
+      tracks: [{ name: "Nameless" }],
+    });
+    expect(neither.payload).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    expect(neither.payload.message).toContain("exactly one of type or duplicateOf");
   });
 
   it("duplicates a scene and a device", async () => {

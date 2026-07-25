@@ -306,10 +306,31 @@ export async function runSelfTest(
 
     // --- v2 quick wins: cue points (add → rename → delete round-trip) ---
     const cueAdd = await deps.song.updateSong({
-      addCues: [{ timeBeats: 8, name: `${NAME_PREFIX} Cue` }],
+      addCues: [{ timeBeats: 8, name: `${NAME_PREFIX} Cue` }, { timeBeats: 16 }],
     });
     const cue = cueAdd.addedCues[0];
     check("add cue point at beat 8", approx(cue?.timeBeats, 8), 8, cue?.timeBeats);
+    // Divergence probe: FakeLive names an unnamed cue "Cue N"; real Live derives
+    // a default locator name from the position. The two cannot both be asserted,
+    // so this is a REPORTED observation — an in-Live run records Live's value
+    // (tracked in docs/smoke-runbook.md's deferred verifications).
+    const unnamedCue = cueAdd.addedCues[1];
+    if (unnamedCue) {
+      createdCueIds.push(unnamedCue.id);
+      check(
+        "add cue point with no name at beat 16",
+        approx(unnamedCue.timeBeats, 16),
+        16,
+        unnamedCue.timeBeats,
+      );
+      report(
+        `OBSERVED: default locator name for an unnamed cue at beat 16 = ${fmt(unnamedCue.name)} (FakeLive placeholder: "Cue N").`,
+      );
+      await deps.song.updateSong({ deleteCueIds: [unnamedCue.id] });
+      createdCueIds = createdCueIds.filter((id) => id !== unnamedCue.id);
+    } else {
+      fail("add cue point with no name at beat 16", "a second cue", "none returned");
+    }
     if (cue) {
       createdCueIds.push(cue.id);
       await deps.song.updateSong({
@@ -416,6 +437,21 @@ export async function runSelfTest(
         deps.clips.editClipNotes(id, { remove: true }),
       );
 
+      // Divergence probe: read the FRESH clip's warp state before any warp
+      // write. FakeLive hard-codes warping true / warpMode "beats"; Live's real
+      // defaults depend on the file and preferences, so the values are REPORTED
+      // and only their presence is asserted.
+      const fresh = await deps.inspector.getClip(id);
+      check(
+        "fresh audio clip reports warp state",
+        fresh.warping !== undefined,
+        "warping present",
+        fresh.warping,
+      );
+      report(
+        `OBSERVED: fresh audio-clip warp defaults = warping ${fmt(fresh.warping)}, warpMode ${fmt(fresh.warpMode)} (FakeLive: true / "beats").`,
+      );
+
       await deps.clips.updateClip(id, { warping: true, warpMode: "tones" });
       const warped = await deps.inspector.getClip(id);
       check(
@@ -442,7 +478,7 @@ export async function runSelfTest(
       const scenesToDelete = createdSceneIds.filter((id) => liveSceneIds.has(id));
       if (scenesToDelete.length > 0) await deps.tracks.deleteScenes(scenesToDelete);
       if (tracksToDelete.length > 0) await deps.tracks.deleteTracks(tracksToDelete);
-      const liveCueIds = new Set(((set.cues ?? []) as { id: string }[]).map((c) => c.id));
+      const liveCueIds = new Set((set.cues ?? []).map((c) => c.id));
       const cuesToDelete = createdCueIds.filter((id) => liveCueIds.has(id));
       if (cuesToDelete.length > 0) {
         await deps.song.updateSong({ deleteCueIds: cuesToDelete });

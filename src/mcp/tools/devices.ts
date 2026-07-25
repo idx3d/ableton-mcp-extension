@@ -18,7 +18,8 @@ export const deviceTools: ToolDef[] = [
     description:
       'Insert a built-in Live device by name (e.g. "Reverb", "Auto Filter") onto a ' +
       "track's device chain, OR duplicate an existing device (duplicateOf: deviceId " +
-      "— the copy lands right after the source; trackId/index must be omitted). " +
+      "— the copy lands right after the SOURCE, so repeating the call on the same " +
+      "source stacks the copies in reverse order; trackId/index must be omitted). " +
       "One undo step. Optional index positions a named insert (0 = first); omitted " +
       "appends. Third-party plugins are not supported by the Ableton API. Returns " +
       "the new device with its parameters.",

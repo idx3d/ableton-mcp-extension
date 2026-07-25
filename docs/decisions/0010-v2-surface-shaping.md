@@ -74,13 +74,17 @@ with no existing owner.
   (`set_simpler_sample`), the rest folded into existing tools. The spec projects
   27 after Phase C (4b adds `create_take_lane`, `update_take_lane`,
   `insert_chain`; 4c adds `import_file`, `render_audio`).
-- Extended tools' schemas grow unions and optionals — `type` vs. `duplicateOf`
-  on `create_tracks`, `{ trackId, sceneId }` vs. `{ laneId, startBeats }` on
-  clip creation, `device` vs. `duplicateOf` on `insert_device`, `trackId` vs.
-  `chainId` also on `insert_device`. "Exactly one of" is not a single uniform
+- Extended tools' schemas grow optionals — in Phase A (this PR), `type` vs.
+  `duplicateOf` on `create_tracks` and `device` vs. `duplicateOf` on
+  `insert_device`; Plan 4b will add `{ trackId, sceneId }` vs.
+  `{ laneId, startBeats }` on clip creation and `trackId` vs. `chainId` also on
+  `insert_device`. "Exactly one of" is not a single uniform
   rule — each tool's real constraint, and where it lives, differs: `create_tracks`
   requires exactly one of `type`/`duplicateOf` per spec, enforced in
-  `TrackService.createTracks` (`INVALID_INPUT` otherwise); `create_scenes`
+  `TrackService.createTracks` (`INVALID_INPUT` otherwise) rather than as a zod
+  union, so the "both" and "neither" mistakes return the structured
+  `{ok:false, code, hint}` envelope instead of a raw schema-validation error;
+  `create_scenes`
   requires only _at least_ one of `count`/`duplicateOf` — combining them is
   valid and means "duplicate the source `count` times" — also enforced in
   `TrackService`; `insert_device`'s `device`/`duplicateOf` exclusivity is

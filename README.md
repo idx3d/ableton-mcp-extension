@@ -11,10 +11,13 @@ listens on `localhost` over Streamable HTTP, and is protected by a per-install b
 
 ## Status
 
-**Extension complete; macOS in-Live validated.** The 22-tool MCP server runs inside a real
-Ableton Live beta — its built-in self-test passes **20/20 on macOS** (Live 12.4.5b8), and the
-full read + write surface has been driven end-to-end against a live set. Windows in-Live
-validation is the remaining gate before tagging `v0.1.0`.
+**Extension complete; macOS in-Live validated.** The MCP server runs inside a real Ableton
+Live beta — its built-in self-test passed **20/20 on macOS** (Live 12.4.5b8, 2026-07-24) and
+the full read + write surface was driven end-to-end against a live set. That run covered the
+**21-tool v1 surface**; the v2 "quick wins" tools (cue points, duplicate, audio-clip warp,
+`set_simpler_sample` — 22 tools total) and their self-test checks are green in CI against the
+fake Live but have **not been run inside Live yet**. Re-running the self-test in Live, on
+macOS and on Windows, is the remaining gate before tagging `v0.1.0`.
 
 You don't need Ableton to try the server logic: `npm run dev:fake` runs it against an
 in-memory fake Live.

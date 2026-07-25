@@ -30,7 +30,7 @@ Update song-level settings in one undo step: tempo (20-999 BPM) and arrangement 
 
 ## create_tracks
 
-Create and/or duplicate tracks in a single undo step. Each spec is EITHER {type: "midi" | "audio", name?} (new empty track) OR {duplicateOf: trackId, name?} (full copy — clips, devices, mixer — inserted right after the source). Returns the created track summaries with IDs.
+Create and/or duplicate tracks in a single undo step. Each spec needs EXACTLY ONE of type or duplicateOf: {type: "midi" | "audio", name?} (new empty track) OR {duplicateOf: trackId, name?} (full copy — clips, devices, mixer — inserted right after the source). Because each copy lands right after the SOURCE, N duplicates of the same track end up in reverse order (the last one created sits closest to the source), matching Live. Returns the created track summaries with IDs.
 
 **Parameters:** `tracks`
 
@@ -48,7 +48,7 @@ Delete tracks by ID in one undo step. All IDs are validated first: if any is sta
 
 ## create_scenes
 
-Append N empty scenes (count 1-64), or duplicate an existing scene and its clips (duplicateOf, inserted right after the source; count copies N times). Returns the created scenes with IDs.
+Append N empty scenes (count 1-64), or duplicate an existing scene and its clips (duplicateOf, inserted right after the source; count copies N times). Each copy lands right after the SOURCE, so count > 1 yields the copies in reverse order (the last one created sits closest to the source), matching Live. Returns the created scenes with IDs.
 
 **Parameters:** `count?`, `duplicateOf?`
 
@@ -108,7 +108,7 @@ Full detail of one device: every parameter with name, current value, min/max, an
 
 ## insert_device
 
-Insert a built-in Live device by name (e.g. "Reverb", "Auto Filter") onto a track's device chain, OR duplicate an existing device (duplicateOf: deviceId — the copy lands right after the source; trackId/index must be omitted). One undo step. Optional index positions a named insert (0 = first); omitted appends. Third-party plugins are not supported by the Ableton API. Returns the new device with its parameters.
+Insert a built-in Live device by name (e.g. "Reverb", "Auto Filter") onto a track's device chain, OR duplicate an existing device (duplicateOf: deviceId — the copy lands right after the SOURCE, so repeating the call on the same source stacks the copies in reverse order; trackId/index must be omitted). One undo step. Optional index positions a named insert (0 = first); omitted appends. Third-party plugins are not supported by the Ableton API. Returns the new device with its parameters.
 
 **Parameters:** `trackId?`, `device?`, `duplicateOf?`, `index?`
 

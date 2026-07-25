@@ -1,6 +1,10 @@
 # Capability Map — Ableton Extensions SDK
 
-**SDK version:** 1.0.0-beta.0 · **API version:** `"1.0.0"` · **Last verified:** 2026-07-19
+**SDK version:** 1.0.0-beta.0 · **API version:** `"1.0.0"` · **Last verified:** 2026-07-24
+(cue points, `duplicateTrack`/`duplicateScene`/`duplicateDevice`, `AudioClip.warping`/
+`warpMode`, `Simpler.replaceSample` checked against the vendored typedoc; the runtime
+behavior of those calls is not yet in-Live verified — see
+[`smoke-runbook.md`](smoke-runbook.md))
 
 Bird's-eye view of what the Live API exposes, what we surface over MCP, and what is
 impossible in the current API version. This file is the reasoning surface for every
@@ -28,6 +32,11 @@ playbook in the design spec).
   undo step (synchronous callback; batch async via `Promise.all`).
 - **Handles**: opaque bigint IDs, session-stable, resolvable via
   `getObjectFromHandle`; throw when the entity is deleted.
+- **Duplicates land right after the SOURCE**, not after the previous copy
+  (`Song.duplicateTrack`/`duplicateScene`, `Track.duplicateDevice`). N duplicates of one
+  source therefore end up in **reverse creation order** — the last copy sits closest to the
+  source. FakeLive mirrors this; the affected tool descriptions state it (not yet in-Live
+  verified — see `smoke-runbook.md`).
 - **Filesystem**: restricted to `storageDirectory` + `tempDirectory`; external files
   enter via `resources.importIntoProject`. Writes elsewhere throw `ERR_ACCESS_DENIED`
   (verified in-Live) — an external process cannot rely on the extension dropping a
@@ -52,9 +61,12 @@ playbook in the design spec).
 ## Runtime status
 
 The full **22-tool surface (v1 + Phase A of the v2 spec) is implemented** (see the exposure table below) and
-green in CI against FakeLive. **In-Live validation: macOS PASSED** (Live 12.4.5b8,
-2026-07-24 — self-test 20/20, 0 failed) after the ADR 0009 fixes; **Windows pending**
-before tagging v0.1.0. The in-Live self-test runner (`src/shell/self-test.ts`) replays
+green in CI against FakeLive. **In-Live validation: macOS PASSED for the v1 surface**
+(Live 12.4.5b8, 2026-07-24 — self-test 20/20, 0 failed) after the ADR 0009 fixes. That run
+**predates the v2a checks**: the self-test has since grown from 21 to 35 checks (count against
+FakeLive), and the 14 covering cue points, duplicate, warp and the Simpler sample have not yet
+run in Live. Both a re-run on macOS and a **Windows run are pending** before tagging v0.1.0.
+The in-Live self-test runner (`src/shell/self-test.ts`) replays
 the component scenarios plus the FakeLive-vs-Live contract checks against the real SDK
 adapter — run it via the status dialog's "Run self-test" button. See
 [`smoke-runbook.md`](smoke-runbook.md) for the procedure and the release gate.

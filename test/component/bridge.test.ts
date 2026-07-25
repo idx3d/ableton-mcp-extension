@@ -73,7 +73,7 @@ describe("stdio bridge splice", () => {
     stdin.write(JSON.stringify({ jsonrpc: "2.0", method }) + "\n");
   }
 
-  it("initializes, lists 21 tools, and calls get_set over stdio", async () => {
+  it("initializes, lists 22 tools, and calls get_set over stdio", async () => {
     const init = await rpc(1, "initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},

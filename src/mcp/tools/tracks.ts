@@ -6,19 +6,25 @@ export const trackTools: ToolDef[] = [
   {
     name: "create_tracks",
     description:
-      "Create and/or duplicate tracks in a single undo step. Each spec is EITHER " +
-      '{type: "midi" | "audio", name?} (new empty track) OR {duplicateOf: trackId, ' +
-      "name?} (full copy — clips, devices, mixer — inserted right after the " +
-      "source). Returns the created track summaries with IDs.",
+      "Create and/or duplicate tracks in a single undo step. Each spec needs " +
+      'EXACTLY ONE of type or duplicateOf: {type: "midi" | "audio", name?} (new ' +
+      "empty track) OR {duplicateOf: trackId, name?} (full copy — clips, devices, " +
+      "mixer — inserted right after the source). Because each copy lands right " +
+      "after the SOURCE, N duplicates of the same track end up in reverse order " +
+      "(the last one created sits closest to the source), matching Live. Returns " +
+      "the created track summaries with IDs.",
     inputSchema: {
+      // Deliberately a single loose object rather than a union: an "exactly one
+      // of" union turns the most likely input mistake into an unstructured zod
+      // protocol error, so the rule is enforced in TrackService.createTracks
+      // instead and surfaces as a coded {ok:false, code, hint} result.
       tracks: z
         .array(
-          z.union([
-            z
-              .object({ type: z.enum(["midi", "audio"]), name: z.string().optional() })
-              .strict(),
-            z.object({ duplicateOf: z.string(), name: z.string().optional() }).strict(),
-          ]),
+          z.object({
+            type: z.enum(["midi", "audio"]).optional(),
+            name: z.string().optional(),
+            duplicateOf: z.string().optional(),
+          }),
         )
         .min(1),
     },
@@ -61,7 +67,9 @@ export const trackTools: ToolDef[] = [
     description:
       "Append N empty scenes (count 1-64), or duplicate an existing scene and its " +
       "clips (duplicateOf, inserted right after the source; count copies N times). " +
-      "Returns the created scenes with IDs.",
+      "Each copy lands right after the SOURCE, so count > 1 yields the copies in " +
+      "reverse order (the last one created sits closest to the source), matching " +
+      "Live. Returns the created scenes with IDs.",
     inputSchema: {
       count: z.number().int().min(1).max(64).optional(),
       duplicateOf: z.string().optional(),

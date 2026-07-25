@@ -18,7 +18,10 @@ capability-map, tools.md, plans/).
 
 ## The v0.1.0 release gate — in-Live smoke
 
-**macOS: PASSED** (Live 12.4.5b8, 2026-07-24 — self-test **20/20, 0 failed**). Getting
+**macOS: PASSED for the v1 surface** (Live 12.4.5b8, 2026-07-24 — self-test **20/20, 0
+failed**). That run predates the Plan-4a v2a checks: the self-test has since grown from 21
+to 35 checks and the 14 new ones (cue points, duplicate, warp, Simpler sample) have **not
+run in Live** — they are green in CI against FakeLive only. Getting
 there surfaced and fixed three real bugs no CI could catch — the Extension Host is a
 stripped Node `vm`-context, not full Node (see
 [`decisions/0009-real-extension-host-runtime.md`](decisions/0009-real-extension-host-runtime.md)):
@@ -29,9 +32,10 @@ The fixes are on branch `fix/extension-host-global` (→ PR).
 **Remaining before tagging v0.1.0:**
 
 1. Land the `fix/extension-host-global` PR on main.
-2. **Windows self-test** — same procedure on a Windows Live beta (still pending; not yet
+2. **macOS self-test re-run** covering the v2a checks (the 20/20 run predates them).
+3. **Windows self-test** — same procedure on a Windows Live beta (still pending; not yet
    run). Nothing in CI can cover this (no Live host in CI).
-3. Then tag v0.1.0.
+4. Then tag v0.1.0.
 
 To run the smoke on a fresh machine, follow **`docs/smoke-runbook.md`**: install the
 Extensions-capable Live beta + enable Developer Mode; drop the SDK tarballs into

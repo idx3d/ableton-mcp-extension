@@ -34,7 +34,7 @@ import {
   type Track,
 } from "@ableton-extensions/sdk";
 
-import { PortError } from "../../port/errors.js";
+import { PortError, type PortErrorCode } from "../../port/errors.js";
 import type { LivePort } from "../../port/live-port.js";
 import type {
   ClipDetail,
@@ -82,16 +82,43 @@ const WARP_MODE_PAIRS: ReadonlyArray<readonly [SdkWarpMode, WarpMode]> = [
   [SdkWarpMode.ComplexPro, "complexPro"],
 ];
 
-function warpModeFromSdk(mode: number): WarpMode {
-  const found = WARP_MODE_PAIRS.find(([sdk]) => sdk === mode);
-  if (!found) throw new PortError("INTERNAL", `unknown SDK warp mode ${mode}`);
-  return found[1];
+/**
+ * Reads must be TOTAL: Live's LOM defines `warp_mode 5 = REX` (for `.rx2`
+ * files), a value the SDK enum leaves unassigned, and other modes may appear in
+ * future Live versions. An unmapped mode yields `undefined` so the caller can
+ * omit `warpMode` (keeping `warping`) instead of making the whole clip
+ * unreadable. The write path (`warpModeToSdk`) still rejects unknown modes.
+ */
+function warpModeFromSdk(mode: number): WarpMode | undefined {
+  return WARP_MODE_PAIRS.find(([sdk]) => sdk === mode)?.[1];
 }
 
 function warpModeToSdk(mode: WarpMode): SdkWarpMode {
   const found = WARP_MODE_PAIRS.find(([, port]) => port === mode);
   if (!found) throw new PortError("INTERNAL", `unknown warp mode ${mode}`);
   return found[0];
+}
+
+/**
+ * Wraps a Live write whose rejection is foreseeable, so a host refusal reaches
+ * the model as a coded, actionable failure instead of a bare INTERNAL ("this is
+ * a bug in the extension") that also discards Live's own message — the same
+ * idiom `insertDevice` and `setSimplerSample` use inline. FakeLive never throws
+ * on these paths, so these mappings are real-Live-only and CI cannot cover them.
+ */
+async function liveRefusal<T>(
+  fn: () => Promise<T>,
+  code: PortErrorCode,
+  fallbackMessage: string,
+  hint: string,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof PortError) throw err;
+    const message = err instanceof Error && err.message ? err.message : fallbackMessage;
+    throw new PortError(code, message, hint);
+  }
 }
 
 interface ResolvedClip {
@@ -167,19 +194,19 @@ export class SdkAdapter implements LivePort {
       throw new PortError("INTERNAL", `clip ${id} scene index out of range`);
     }
     const filePath = this.clipFilePath(clip);
+    // Warp state is audio-only; omitted on MIDI clips (matches FakeLive).
+    // warpMode is additionally omitted when Live reports a mode this SDK
+    // version does not name (e.g. REX) — the clip stays readable either way.
+    const warpMode =
+      clip instanceof AudioClip ? warpModeFromSdk(toNumber(clip.warpMode)) : undefined;
     return {
       ...this.summarizeClip(clip),
       trackId: this.trackIds.idFor(track),
       sceneId: this.sceneIds.idFor(scene),
       notes: clip instanceof MidiClip ? clip.notes.map(noteFromSdk) : [],
       ...(filePath !== undefined ? { filePath } : {}),
-      // Warp state is audio-only; omitted on MIDI clips (matches FakeLive).
-      ...(clip instanceof AudioClip
-        ? {
-            warping: clip.warping,
-            warpMode: warpModeFromSdk(toNumber(clip.warpMode)),
-          }
-        : {}),
+      ...(clip instanceof AudioClip ? { warping: clip.warping } : {}),
+      ...(warpMode !== undefined ? { warpMode } : {}),
     };
   }
 
@@ -206,7 +233,12 @@ export class SdkAdapter implements LivePort {
       if (source) {
         // Live inserts the duplicate immediately after the ORIGINAL, so N
         // duplicates of one source land in reverse order (FakeLive matches).
-        track = await this.song.duplicateTrack(source);
+        track = await liveRefusal(
+          () => this.song.duplicateTrack(source),
+          "UNSUPPORTED",
+          `could not duplicate track ${spec.duplicateOf}`,
+          "Live refused the duplicate. Create a new track with type instead, or duplicate a different track.",
+        );
       } else if (spec.type === "midi") {
         track = await this.song.createMidiTrack();
       } else if (spec.type === "audio") {
@@ -250,7 +282,13 @@ export class SdkAdapter implements LivePort {
       for (let i = 0; i < count; i++) {
         // Live inserts the duplicate immediately after the ORIGINAL, so N
         // duplicates of one source land in reverse order (FakeLive matches).
-        created.push(this.summarizeScene(await this.song.duplicateScene(source)));
+        const copy = await liveRefusal(
+          () => this.song.duplicateScene(source),
+          "UNSUPPORTED",
+          `could not duplicate scene ${duplicateOf}`,
+          "Live refused the duplicate. Append empty scenes with count instead, or duplicate a different scene.",
+        );
+        created.push(this.summarizeScene(copy));
       }
       return created;
     }
@@ -420,7 +458,12 @@ export class SdkAdapter implements LivePort {
   async duplicateDevice(id: DeviceId): Promise<DeviceDetail> {
     const { track, device } = this.resolveDevice(id);
     // The copy lands directly after the original in the device chain.
-    const copy = await track.duplicateDevice(device);
+    const copy = await liveRefusal(
+      () => track.duplicateDevice(device),
+      "UNSUPPORTED",
+      `could not duplicate device ${id}`,
+      "Live refused the duplicate. Insert a fresh device with trackId + device instead.",
+    );
     return await this.deviceDetail(track, copy);
   }
 
@@ -538,12 +581,25 @@ export class SdkAdapter implements LivePort {
     if (patch.tempo !== undefined) this.song.tempo = patch.tempo;
     for (const { cue, name } of renames) cue.name = name;
     for (const cue of deletes) {
-      await this.song.deleteCuePoint(cue);
+      await liveRefusal(
+        () => this.song.deleteCuePoint(cue),
+        "NOT_FOUND",
+        `could not delete cue point ${this.cueIds.idFor(cue)}`,
+        "The locator may have been removed in Live since the last read. Call get_set to refresh the cue list.",
+      );
       this.cueIds.forget(cue);
     }
     const addedCues: CueRef[] = [];
     for (const add of patch.addCues ?? []) {
-      const cue = await this.song.createCuePoint(add.timeBeats);
+      // Live refuses a second locator at an arrangement position that already
+      // has one — very reachable from a model, and FakeLive allows it, so this
+      // mapping exists only here.
+      const cue = await liveRefusal(
+        () => this.song.createCuePoint(add.timeBeats),
+        "CONFLICT",
+        `could not create a cue point at beat ${add.timeBeats}`,
+        `Live allows one locator per arrangement position: pick a different beat, or delete the existing locator at beat ${add.timeBeats} first (see get_set cues).`,
+      );
       // Live derives a default locator name from the position; only override
       // when the caller supplied one.
       if (add.name !== undefined) cue.name = add.name;
