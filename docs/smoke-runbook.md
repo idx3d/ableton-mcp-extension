@@ -77,7 +77,7 @@ back to `tempDirectory` and then an OS-temp path, logging which it used.
 - [x] **Self-test green on macOS — v1 surface only** — Live 12.4.5b8, 2026-07-24, **20/20, 0 failed**
       (required the ADR 0009 fixes: `global`→`globalThis`, custom `node:http` transport + host-globals prelude, and `toNumber` bigint coercion).
 - [ ] **Self-test re-run green on macOS including the v2a checks.** The 20/20 run predates
-      Plan 4a: the self-test has since grown from 21 to 35 checks and the 14 new ones (cue
+      Plan 4a: the self-test has since grown from 20 to 35 checks and the 15 new ones (cue
       points, duplicate, warp, Simpler sample) have never executed against real Live.
 - [ ] **Self-test green on Windows** (all checks PASS, 0 failed).
 - [ ] Only then tag `v0.1.0`.

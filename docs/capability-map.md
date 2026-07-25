@@ -63,9 +63,9 @@ playbook in the design spec).
 The full **22-tool surface (v1 + Phase A of the v2 spec) is implemented** (see the exposure table below) and
 green in CI against FakeLive. **In-Live validation: macOS PASSED for the v1 surface**
 (Live 12.4.5b8, 2026-07-24 — self-test 20/20, 0 failed) after the ADR 0009 fixes. That run
-**predates the v2a checks**: the self-test has since grown from 21 to 35 checks (count against
-FakeLive), and the 14 covering cue points, duplicate, warp and the Simpler sample have not yet
-run in Live. Both a re-run on macOS and a **Windows run are pending** before tagging v0.1.0.
+**predates the v2a checks**: the self-test has since grown from 20 to 35 checks (count against
+FakeLive — the 20/20 macOS run was the full v1 set), and the 15 covering cue points,
+duplicate, warp and the Simpler sample have not yet run in Live. Both a re-run on macOS and a **Windows run are pending** before tagging v0.1.0.
 The in-Live self-test runner (`src/shell/self-test.ts`) replays
 the component scenarios plus the FakeLive-vs-Live contract checks against the real SDK
 adapter — run it via the status dialog's "Run self-test" button. See

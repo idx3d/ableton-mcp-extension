@@ -19,8 +19,8 @@ capability-map, tools.md, plans/).
 ## The v0.1.0 release gate — in-Live smoke
 
 **macOS: PASSED for the v1 surface** (Live 12.4.5b8, 2026-07-24 — self-test **20/20, 0
-failed**). That run predates the Plan-4a v2a checks: the self-test has since grown from 21
-to 35 checks and the 14 new ones (cue points, duplicate, warp, Simpler sample) have **not
+failed**). That run predates the Plan-4a v2a checks: the self-test has since grown from 20
+to 35 checks and the 15 new ones (cue points, duplicate, warp, Simpler sample) have **not
 run in Live** — they are green in CI against FakeLive only. Getting
 there surfaced and fixed three real bugs no CI could catch — the Extension Host is a
 stripped Node `vm`-context, not full Node (see
