@@ -116,6 +116,14 @@ export async function runSelfTest(
     }
   };
 
+  /**
+   * Names the call about to run. Every report line streams to the Extension
+   * Host log as it happens, so if a call takes Live down with it the last
+   * STEP line names the culprit — checks only report after the fact, which a
+   * crash never reaches.
+   */
+  const step = (label: string): void => report(`STEP: ${label}`);
+
   const createdTrackIds: string[] = [];
   let createdSceneIds: string[] = [];
   let createdCueIds: string[] = [];
@@ -305,6 +313,7 @@ export async function runSelfTest(
     }
 
     // --- v2 quick wins: cue points (add → rename → delete round-trip) ---
+    step("updateSong addCues (beats 8 and 16)");
     const cueAdd = await deps.song.updateSong({
       addCues: [{ timeBeats: 8, name: `${NAME_PREFIX} Cue` }, { timeBeats: 16 }],
     });
@@ -326,6 +335,7 @@ export async function runSelfTest(
       report(
         `OBSERVED: default locator name for an unnamed cue at beat 16 = ${fmt(unnamedCue.name)} (FakeLive placeholder: "Cue N").`,
       );
+      step("updateSong deleteCueIds (unnamed cue)");
       await deps.song.updateSong({ deleteCueIds: [unnamedCue.id] });
       createdCueIds = createdCueIds.filter((id) => id !== unnamedCue.id);
     } else {
@@ -333,6 +343,7 @@ export async function runSelfTest(
     }
     if (cue) {
       createdCueIds.push(cue.id);
+      step("updateSong renameCues");
       await deps.song.updateSong({
         renameCues: [{ id: cue.id, name: `${NAME_PREFIX} Cue v2` }],
       });
@@ -345,6 +356,7 @@ export async function runSelfTest(
         `${NAME_PREFIX} Cue v2`,
         renamedCue?.name,
       );
+      step("updateSong deleteCueIds (named cue)");
       await deps.song.updateSong({ deleteCueIds: [cue.id] });
       createdCueIds = createdCueIds.filter((id) => id !== cue.id);
       const cueGone = !((await deps.inspector.getSet()).cues ?? []).some(
@@ -357,6 +369,7 @@ export async function runSelfTest(
     );
 
     // --- v2 quick wins: duplicate track / scene / device ---
+    step("createTracks duplicateOf (drums)");
     const [dupTrack] = await deps.tracks.createTracks([{ duplicateOf: drums.id }]);
     createdTrackIds.push(dupTrack.id);
     check(
@@ -371,6 +384,7 @@ export async function runSelfTest(
       ">= 1 clip",
       dupTrack.clipCount,
     );
+    step("createScenes duplicateOf (Verse)");
     const [dupScene] = await deps.tracks.createScenes(undefined, sceneA.id);
     createdSceneIds.push(dupScene.id);
     check(
@@ -379,6 +393,7 @@ export async function runSelfTest(
       "Verse",
       dupScene.name,
     );
+    step("duplicateDevice (Reverb)");
     const reverbCopy = await deps.devices.duplicateDevice(reverb.id);
     check(
       "duplicate device -> Reverb copy",
@@ -393,12 +408,14 @@ export async function runSelfTest(
     );
 
     // --- v2 quick wins: Simpler sample ---
+    step("insertDevice Simpler (bass)");
     const simpler = await deps.devices.insertDevice(bass.id, "Simpler");
     check("insert Simpler", simpler.name === "Simpler", "Simpler", simpler.name);
     await expectError("Simpler sample on Reverb -> UNSUPPORTED", "UNSUPPORTED", () =>
       deps.devices.setSimplerSample(reverb.id, SELF_TEST_SAMPLE),
     );
     try {
+      step(`setSimplerSample (${SELF_TEST_SAMPLE})`);
       const { samplePath } = await deps.devices.setSimplerSample(
         simpler.id,
         SELF_TEST_SAMPLE,
@@ -419,6 +436,7 @@ export async function runSelfTest(
     // Needs a real sample on disk in Live; degrades to SKIP if unavailable.
     let audioClipId: string | undefined;
     try {
+      step(`createAudioClip (${SELF_TEST_SAMPLE})`);
       const audioClip = await deps.clips.createAudioClip({
         trackId: audio.id,
         sceneId: sceneA.id,
@@ -452,6 +470,7 @@ export async function runSelfTest(
         `OBSERVED: fresh audio-clip warp defaults = warping ${fmt(fresh.warping)}, warpMode ${fmt(fresh.warpMode)} (FakeLive: true / "beats").`,
       );
 
+      step("updateClip warping/warpMode -> tones");
       await deps.clips.updateClip(id, { warping: true, warpMode: "tones" });
       const warped = await deps.inspector.getClip(id);
       check(

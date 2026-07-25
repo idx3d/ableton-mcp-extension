@@ -181,6 +181,11 @@ async function runSelfTestFlow(
     async (update) =>
       runSelfTest(deps, (line) => {
         transcript.push(line);
+        // Also stream to the Extension Host log as each line happens: the
+        // transcript below is only written once the run finishes, so a hard
+        // Live crash mid-run would otherwise lose every line — including the
+        // STEP marker naming the call that killed it.
+        console.log(`[ableton-mcp] selftest: ${line}`);
         // Fire-and-forget: report() is synchronous, so stream without awaiting.
         void update(line);
       }),
