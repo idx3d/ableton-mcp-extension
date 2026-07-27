@@ -178,17 +178,26 @@ async function runSelfTestFlow(
   const result = (await context.ui.withinProgressDialog(
     "Running Ableton MCP self-test…",
     { progress: 0 },
-    async (update) =>
-      runSelfTest(deps, (line) => {
+    async (update) => {
+      // The SDK's example awaits every update(); firing them concurrently
+      // (`void update(line)`) crashed Live — the host invoked a freed callback
+      // on the main thread asynchronously, long after the call that queued it.
+      // report() is synchronous, so chain the updates instead, and drain the
+      // chain before returning: an update must never land after the callback
+      // resolves, because that is when the dialog closes.
+      let queued: Promise<void> = Promise.resolve();
+      const selfTest = await runSelfTest(deps, (line) => {
         transcript.push(line);
-        // Also stream to the Extension Host log as each line happens: the
-        // transcript below is only written once the run finishes, so a hard
-        // Live crash mid-run would otherwise lose every line — including the
-        // STEP marker naming the call that killed it.
+        // Stream to the Extension Host log as each line happens: the transcript
+        // is only written once the run finishes, so a hard crash mid-run would
+        // otherwise lose every line — including the STEP marker naming the call
+        // that killed it.
         console.log(`[ableton-mcp] selftest: ${line}`);
-        // Fire-and-forget: report() is synchronous, so stream without awaiting.
-        void update(line);
-      }),
+        queued = queued.then(() => update(line)).catch(() => {});
+      });
+      await queued;
+      return selfTest;
+    },
   )) as SelfTestResult;
 
   try {
