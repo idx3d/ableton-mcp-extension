@@ -20,9 +20,15 @@ describe("connectionFilePath", () => {
   });
 
   it("uses APPDATA on Windows", () => {
-    const p = connectionFilePath({ APPDATA: "C:\\Users\\x\\AppData\\Roaming" }, "win32");
-    expect(p).toContain("ableton-mcp");
-    expect(p).toContain("AppData");
+    expect(
+      connectionFilePath({ APPDATA: "C:\\Users\\x\\AppData\\Roaming" }, "win32"),
+    ).toBe("C:\\Users\\x\\AppData\\Roaming\\ableton-mcp\\connection.json");
+  });
+
+  it("falls back to USERPROFILE on Windows without APPDATA", () => {
+    expect(connectionFilePath({ USERPROFILE: "C:\\Users\\x" }, "win32")).toBe(
+      "C:\\Users\\x\\AppData\\Roaming\\ableton-mcp\\connection.json",
+    );
   });
 
   it("uses XDG_CONFIG_HOME on linux", () => {

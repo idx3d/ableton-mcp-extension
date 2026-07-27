@@ -7,7 +7,7 @@
  */
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, posix, win32 } from "node:path";
 
 export interface ConnectionInfo {
   url: string;
@@ -20,6 +20,10 @@ export function connectionFilePath(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
 ): string {
+  // Join with the separator of the *target* platform, not the host's: the
+  // `platform` parameter must produce the same string on every host (the
+  // POSIX-path tests run on the Windows CI runner and vice versa).
+  const { join } = platform === "win32" ? win32 : posix;
   const home = env.HOME ?? env.USERPROFILE ?? homedir();
   const dir =
     platform === "darwin"
