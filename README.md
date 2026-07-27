@@ -34,7 +34,9 @@ in-memory fake Live.
   Mode** enabled (Preferences → Extensions) so an unsigned extension can load.
 - Node.js ≥ 24 to build the extension.
 - The Ableton Extensions SDK tarballs (from the beta program) — see
-  [CONTRIBUTING.md](CONTRIBUTING.md). Nothing Ableton-derived is committed to this repo.
+  [CONTRIBUTING.md](CONTRIBUTING.md). Nothing Ableton-derived is committed to this repo:
+  `references/` and `docs/sdk-notes.md` (cited throughout the docs and source) are
+  local-only notes on the vendored SDK and intentionally absent here.
 
 ## Install
 
