@@ -17,7 +17,7 @@ the full read + write surface was driven end-to-end against a live set. That run
 **21-tool v1 surface**; the v2 "quick wins" tools (cue points, duplicate, audio-clip warp,
 `set_simpler_sample` — 22 tools total) and their self-test checks are green in CI against the
 fake Live but have **not been run inside Live yet**. Re-running the self-test in Live, on
-macOS and on Windows, is the remaining gate before tagging `v0.1.0`.
+macOS and on Windows, is the remaining validation before `v0.1.0` is considered final.
 
 You don't need Ableton to try the server logic: `npm run dev:fake` runs it against an
 in-memory fake Live.
@@ -30,15 +30,35 @@ in-memory fake Live.
 
 ## Requirements
 
-- An **Extensions-capable Ableton Live** (from Ableton's beta program), with **Developer
-  Mode** enabled (Preferences → Extensions) so an unsigned extension can load.
-- Node.js ≥ 24 to build the extension.
-- The Ableton Extensions SDK tarballs (from the beta program) — see
-  [CONTRIBUTING.md](CONTRIBUTING.md). Nothing Ableton-derived is committed to this repo:
-  `references/` and `docs/sdk-notes.md` (cited throughout the docs and source) are
-  local-only notes on the vendored SDK and intentionally absent here.
+All you need to _use_ the extension:
+
+- An **Extensions-capable Ableton Live** — currently the **Live 12.4.5 public beta** (join
+  via [Ableton's beta program](https://www.ableton.com/en/beta/)). Extensions don't exist
+  in earlier versions.
+
+Building from source additionally needs Node.js ≥ 24 and the Ableton Extensions SDK
+tarballs (from the beta program) — see [CONTRIBUTING.md](CONTRIBUTING.md). Nothing
+Ableton-derived is committed to this repo: `references/` and `docs/sdk-notes.md` (cited
+throughout the docs and source) are local-only notes on the vendored SDK and intentionally
+absent here.
 
 ## Install
+
+### Download it (no tools needed)
+
+1. Grab `Ableton-MCP-<version>.ablx` from the
+   [latest release](https://github.com/idx3d/ableton-mcp-extension/releases/latest).
+2. In Live, open **Preferences → Extensions** and turn on **Developer Mode** — required
+   because this extension isn't signed by Ableton.
+3. On the same Preferences page, drag the downloaded `.ablx` onto **Drag and drop to
+   install** (or click **Choose file** and pick it).
+4. Check it's alive: in Session view, **right-click any Scene → "Ableton MCP: Status…"**.
+   The dialog shows the server address and the token you'll use in the next section.
+
+That's it — the MCP server now starts and stops with Live. To update, download the newer
+`.ablx` and install it the same way; to uninstall, remove it from the same Preferences page.
+
+### Or build from source
 
 ```sh
 npm ci
@@ -46,9 +66,8 @@ npm run setup:sdk     # installs the SDK tarballs from references/ (see CONTRIBU
 npm run package       # builds and produces dist/Ableton-MCP-<version>.ablx
 ```
 
-Then in Live: **Preferences → Extensions → Drag and drop to install** (or **Choose file**)
-and select the `.ablx`. Enable **Developer Mode** first. On load, the extension registers a
-context-menu action and its log shows `[ableton-mcp] MCP server running at …`.
+Then install the produced `.ablx` exactly as in steps 2–4 above. On load, the extension
+registers a context-menu action and its log shows `[ableton-mcp] MCP server running at …`.
 
 ## Connect your MCP client
 
