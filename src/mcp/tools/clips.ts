@@ -68,8 +68,9 @@ export const clipTools: ToolDef[] = [
   {
     name: "update_clip",
     description:
-      'Update clip properties (name, looping, color as "#RRGGBB") in one undo step. ' +
-      "Returns the updated clip summary.",
+      'Update clip properties in one undo step: name, looping, color ("#RRGGBB"); ' +
+      "for audio clips also warping (on/off) and warpMode (beats | tones | texture " +
+      "| repitch | complex | complexPro). Returns the updated clip summary.",
     inputSchema: {
       clipId: z.string(),
       name: z.string().optional(),
@@ -78,12 +79,20 @@ export const clipTools: ToolDef[] = [
         .string()
         .regex(/^#[0-9a-fA-F]{6}$/)
         .optional(),
+      warping: z.boolean().optional(),
+      warpMode: z
+        .enum(["beats", "tones", "texture", "repitch", "complex", "complexPro"])
+        .optional(),
     },
     handler: async (args, deps) => {
       const patch: ClipPatch = {
         ...(args.name !== undefined ? { name: args.name as string } : {}),
         ...(args.looping !== undefined ? { looping: args.looping as boolean } : {}),
         ...(args.color !== undefined ? { color: args.color as string } : {}),
+        ...(args.warping !== undefined ? { warping: args.warping as boolean } : {}),
+        ...(args.warpMode !== undefined
+          ? { warpMode: args.warpMode as ClipPatch["warpMode"] }
+          : {}),
       };
       const clip = await deps.clips.updateClip(args.clipId as string, patch);
       return {
@@ -92,6 +101,8 @@ export const clipTools: ToolDef[] = [
           name: clip.name,
           looping: clip.looping,
           color: clip.color ?? null,
+          ...(clip.warping !== undefined ? { warping: clip.warping } : {}),
+          ...(clip.warpMode !== undefined ? { warpMode: clip.warpMode } : {}),
         },
       };
     },

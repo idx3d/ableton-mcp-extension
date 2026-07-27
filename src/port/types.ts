@@ -3,6 +3,7 @@ export type SceneId = string; // "s1", ...
 export type ClipId = string; // "c1", ...
 export type DeviceId = string; // "d1", ... minted per session
 export type ReturnTrackId = string; // "r1", ...
+export type CueId = string; // "q1", ... minted per session ("c" is taken by clips)
 
 export type TrackType = "midi" | "audio";
 
@@ -23,8 +24,11 @@ export type Note =
   [number, number, number, number] | [number, number, number, number, NoteExtras];
 
 export interface TrackSpec {
-  type: TrackType;
+  /** Exactly one of type | duplicateOf (validated in TrackService). */
+  type?: TrackType;
   name?: string;
+  /** Duplicate this track (with its clips/devices); inserted after it. */
+  duplicateOf?: TrackId;
 }
 
 export interface TrackPatch {
@@ -34,8 +38,23 @@ export interface TrackPatch {
   armed?: boolean;
 }
 
+/** An arrangement cue point (locator). time is immutable in API 1.0.0. */
+export interface CueRef {
+  id: CueId;
+  name: string;
+  timeBeats: number;
+}
+
+export interface UpdateSongResult {
+  /** Minted refs for cues created by addCues; empty when none were added. */
+  addedCues: CueRef[];
+}
+
 export interface SongPatch {
   tempo?: number;
+  addCues?: Array<{ timeBeats: number; name?: string }>;
+  renameCues?: Array<{ id: CueId; name: string }>;
+  deleteCueIds?: CueId[];
 }
 
 /** A single device parameter with its current Live-internal raw value. */
@@ -57,6 +76,8 @@ export interface DeviceRef {
 export interface DeviceDetail extends DeviceRef {
   trackId: TrackId;
   params: DeviceParam[];
+  /** Simpler devices only: path of the loaded sample. */
+  samplePath?: string;
 }
 
 export interface ReturnTrackSummary {
@@ -107,15 +128,24 @@ export interface SetSnapshot {
   tracks: TrackSummary[];
   scenes: SceneSummary[];
   returnTracks: ReturnTrackSummary[];
+  /** Present only when the set has cue points; sorted by timeBeats. */
+  cues?: CueRef[];
 }
 
 export type ClipKind = "midi" | "audio";
+
+/** Live's warp algorithms (audio clips). Mirrors the SDK WarpMode enum. */
+export type WarpMode =
+  "beats" | "tones" | "texture" | "repitch" | "complex" | "complexPro";
 
 export interface ClipPatch {
   name?: string;
   looping?: boolean;
   /** Hex "#RRGGBB" */
   color?: string;
+  /** Audio clips only — UNSUPPORTED on MIDI clips. */
+  warping?: boolean;
+  warpMode?: WarpMode;
 }
 
 export interface ScenePatch {
@@ -150,4 +180,7 @@ export interface ClipDetail extends ClipSummary {
   notes: Note[];
   /** Audio clips only. */
   filePath?: string;
+  /** Audio clips only. */
+  warping?: boolean;
+  warpMode?: WarpMode;
 }

@@ -5,6 +5,8 @@ import type {
   ClipId,
   ClipKind,
   ClipPatch,
+  CueId,
+  CueRef,
   DeviceDetail,
   DeviceId,
   DeviceParam,
@@ -23,6 +25,8 @@ import type {
   TrackPatch,
   TrackSpec,
   TrackSummary,
+  UpdateSongResult,
+  WarpMode,
 } from "../../port/types.js";
 
 interface FakeClip {
@@ -34,6 +38,9 @@ interface FakeClip {
   color?: string;
   /** audio clips only */
   filePath?: string;
+  /** audio clips only */
+  warping?: boolean;
+  warpMode?: WarpMode;
   notes: Note[];
 }
 
@@ -41,6 +48,7 @@ interface FakeDevice {
   id: DeviceId;
   name: string;
   params: DeviceParam[];
+  samplePath?: string;
 }
 
 interface FakeMixer {
@@ -67,6 +75,12 @@ interface FakeScene {
   name: string;
 }
 
+interface FakeCue {
+  id: CueId;
+  name: string;
+  timeBeats: number;
+}
+
 /**
  * Deliberately tiny stand-in for Live's built-in device library — enough
  * surface for realistic tests. Real-Live name acceptance is pinned by the
@@ -86,6 +100,7 @@ function knob(name: string, value: number, min = 0, max = 1): DeviceParam {
 }
 
 const CATALOG: Record<string, DeviceParam[]> = {
+  Simpler: [onOff, knob("Volume", 0.85), knob("Filter Freq", 1)],
   Reverb: [onOff, knob("Dry/Wet", 1), knob("Decay Time", 0.6), knob("Room Size", 0.5)],
   "Auto Filter": [onOff, knob("Frequency", 1), knob("Resonance", 0)],
   Compressor: [onOff, knob("Threshold", 0.85), knob("Ratio", 0.3), knob("Attack", 0.2)],
@@ -106,11 +121,12 @@ export class FakeLive implements LivePort {
   private tempo = 120;
   private scaleName = "Major";
   private rootNote = 0;
-  private counters = { track: 0, scene: 0, clip: 0, device: 0 };
+  private counters = { track: 0, scene: 0, clip: 0, device: 0, cue: 0 };
   private returnTracks: ReturnTrackSummary[] = [
     { id: "r1", name: "A-Reverb" },
     { id: "r2", name: "B-Delay" },
   ];
+  private cues: FakeCue[] = [];
   readonly undoSteps: string[] = [];
 
   // -- reads ----------------------------------------------------------------
@@ -123,6 +139,7 @@ export class FakeLive implements LivePort {
       tracks: this.tracks.map((t) => this.summarize(t)),
       scenes: this.scenes.map((s) => ({ ...s })),
       returnTracks: this.returnTracks.map((r) => ({ ...r })),
+      ...(this.cues.length > 0 ? { cues: this.cues.map((c) => ({ ...c })) } : {}),
     };
   }
 
@@ -149,6 +166,8 @@ export class FakeLive implements LivePort {
       sceneId,
       notes: this.cloneNotes(clip.notes),
       ...(clip.filePath !== undefined ? { filePath: clip.filePath } : {}),
+      ...(clip.warping !== undefined ? { warping: clip.warping } : {}),
+      ...(clip.warpMode !== undefined ? { warpMode: clip.warpMode } : {}),
     };
   }
 
@@ -163,13 +182,39 @@ export class FakeLive implements LivePort {
         ...p,
         valueItems: p.valueItems ? [...p.valueItems] : undefined,
       })),
+      ...(found.device.samplePath !== undefined
+        ? { samplePath: found.device.samplePath }
+        : {}),
     };
   }
 
   // -- writes ---------------------------------------------------------------
 
   async createTracks(specs: TrackSpec[]): Promise<TrackSummary[]> {
+    // Resolve every duplicate source before creating anything (all-or-nothing).
+    const sources = new Map<TrackSpec, FakeTrack>();
+    for (const spec of specs) {
+      if (spec.duplicateOf !== undefined) {
+        sources.set(spec, this.requireTrack(spec.duplicateOf));
+      }
+    }
     return specs.map((spec) => {
+      const source = sources.get(spec);
+      if (source) {
+        const copy = this.cloneTrack(source, spec.name);
+        // Always splice immediately after the source (not after the previous
+        // copy): repeated duplicateOf specs targeting the same source land in
+        // reverse order, matching Song.duplicateTrack ("inserted immediately
+        // after the original") in real Live.
+        this.tracks.splice(this.tracks.indexOf(source) + 1, 0, copy);
+        return this.summarize(copy);
+      }
+      if (spec.type === undefined) {
+        throw new PortError(
+          "INVALID_INPUT",
+          "each track spec needs exactly one of type or duplicateOf",
+        );
+      }
       const id = `t${++this.counters.track}`;
       const defaultName =
         spec.type === "midi"
@@ -204,12 +249,31 @@ export class FakeLive implements LivePort {
     this.tracks = this.tracks.filter((t) => !ids.includes(t.id));
   }
 
-  async createScenes(count: number): Promise<SceneSummary[]> {
+  async createScenes(count: number, duplicateOf?: SceneId): Promise<SceneSummary[]> {
     const created: SceneSummary[] = [];
+    if (duplicateOf === undefined) {
+      for (let i = 0; i < count; i++) {
+        const id = `s${++this.counters.scene}`;
+        const scene = { id, name: `Scene ${this.counters.scene}` };
+        this.scenes.push(scene);
+        created.push({ ...scene });
+      }
+      return created;
+    }
+    const source = this.requireScene(duplicateOf);
     for (let i = 0; i < count; i++) {
       const id = `s${++this.counters.scene}`;
-      const scene = { id, name: `Scene ${this.counters.scene}` };
-      this.scenes.push(scene);
+      // Live keeps the source name on duplicate (pinned by self-test).
+      const scene = { id, name: source.name };
+      // Always splice immediately after the source (not after the previous
+      // copy): N duplicates of one source land in reverse order, matching
+      // Song.duplicateScene ("inserted immediately after the original") in
+      // real Live.
+      this.scenes.splice(this.scenes.indexOf(source) + 1, 0, scene);
+      for (const track of this.tracks) {
+        const clip = track.clips.get(source.id);
+        if (clip) track.clips.set(id, this.cloneClip(clip));
+      }
       created.push({ ...scene });
     }
     return created;
@@ -296,6 +360,14 @@ export class FakeLive implements LivePort {
     return await this.getDevice(device.id);
   }
 
+  async duplicateDevice(id: DeviceId): Promise<DeviceDetail> {
+    const found = this.findDevice(id);
+    if (!found) throw PortError.notFound("device", id);
+    const copy = this.cloneDevice(found.device);
+    found.track.devices.splice(found.track.devices.indexOf(found.device) + 1, 0, copy);
+    return await this.getDevice(copy.id);
+  }
+
   async setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void> {
     const found = this.findDevice(id);
     if (!found) throw PortError.notFound("device", id);
@@ -332,6 +404,28 @@ export class FakeLive implements LivePort {
     found.track.devices = found.track.devices.filter((d) => d.id !== id);
   }
 
+  async setSimplerSample(
+    id: DeviceId,
+    filePath: string,
+  ): Promise<{ samplePath: string }> {
+    const found = this.findDevice(id);
+    if (!found) throw PortError.notFound("device", id);
+    if (found.device.name !== "Simpler") {
+      throw new PortError(
+        "UNSUPPORTED",
+        `device ${id} is a ${found.device.name}, not a Simpler`,
+        "set_simpler_sample only works on Simpler devices (see get_track for names).",
+      );
+    }
+    // FakeLive cannot check the file exists; real Live is ASSUMED to throw
+    // (mapped to NOT_FOUND by the SdkAdapter). Nothing can pin this: the
+    // self-test's Simpler check degrades to SKIP when the sample is missing,
+    // which is exactly the case that would exercise it. Listed under
+    // "Deferred in-Live verifications" in docs/smoke-runbook.md.
+    found.device.samplePath = filePath;
+    return { samplePath: filePath };
+  }
+
   async setMixer(trackId: TrackId, patch: MixerPatch): Promise<void> {
     const track = this.requireTrack(trackId);
     for (const send of patch.sends ?? []) {
@@ -346,8 +440,40 @@ export class FakeLive implements LivePort {
     }
   }
 
-  async updateSong(patch: SongPatch): Promise<void> {
+  async updateSong(patch: SongPatch): Promise<UpdateSongResult> {
+    // Validate every referenced cue before any mutation (all-or-nothing).
+    const requireCue = (id: CueId): FakeCue => {
+      const cue = this.cues.find((c) => c.id === id);
+      if (!cue) throw PortError.notFound("cue point", id);
+      return cue;
+    };
+    const renames = (patch.renameCues ?? []).map((r) => ({
+      cue: requireCue(r.id),
+      name: r.name,
+    }));
+    const deletes = patch.deleteCueIds ?? [];
+    for (const id of deletes) requireCue(id);
+
     if (patch.tempo !== undefined) this.tempo = patch.tempo;
+    for (const { cue, name } of renames) cue.name = name;
+    if (deletes.length > 0) this.cues = this.cues.filter((c) => !deletes.includes(c.id));
+    const addedCues: CueRef[] = (patch.addCues ?? []).map((add) => {
+      const cue: FakeCue = {
+        id: `q${++this.counters.cue}`,
+        // Real Live derives a default locator name from the position; this
+        // "Cue N" placeholder is a known divergence. The self-test adds one
+        // unnamed cue and REPORTS the name it gets back (an observation, not
+        // an assertion — the two cannot agree), so an in-Live run records
+        // Live's actual default.
+        name: add.name ?? `Cue ${this.counters.cue}`,
+        timeBeats: add.timeBeats,
+      };
+      this.cues.push(cue);
+      return { ...cue };
+    });
+    // Live presents cue points in time order (verify in-Live via self-test).
+    this.cues.sort((a, b) => a.timeBeats - b.timeBeats);
+    return { addedCues };
   }
 
   async createAudioClip(
@@ -381,6 +507,12 @@ export class FakeLive implements LivePort {
       lengthBeats: 4,
       looping: true,
       filePath,
+      // Assumed real-Live defaults for a freshly created warped clip. The
+      // self-test reads a fresh audio clip's warp state BEFORE writing to it
+      // and reports what it saw, so an in-Live run either confirms these or
+      // records the real defaults.
+      warping: true,
+      warpMode: "beats",
       notes: [],
     };
     track.clips.set(sceneId, clip);
@@ -390,9 +522,21 @@ export class FakeLive implements LivePort {
   async updateClip(id: ClipId, patch: ClipPatch): Promise<void> {
     const found = this.findClip(id);
     if (!found) throw PortError.notFound("clip", id);
+    if (
+      (patch.warping !== undefined || patch.warpMode !== undefined) &&
+      found.clip.kind !== "audio"
+    ) {
+      throw new PortError(
+        "UNSUPPORTED",
+        `clip ${id} is a MIDI clip`,
+        "warping and warpMode apply to audio clips only.",
+      );
+    }
     if (patch.name !== undefined) found.clip.name = patch.name;
     if (patch.looping !== undefined) found.clip.looping = patch.looping;
     if (patch.color !== undefined) found.clip.color = patch.color;
+    if (patch.warping !== undefined) found.clip.warping = patch.warping;
+    if (patch.warpMode !== undefined) found.clip.warpMode = patch.warpMode;
   }
 
   async deleteClips(ids: ClipId[]): Promise<void> {
@@ -449,6 +593,42 @@ export class FakeLive implements LivePort {
     return notes.map(
       (n) => (n.length === 5 ? [n[0], n[1], n[2], n[3], { ...n[4] }] : [...n]) as Note,
     );
+  }
+
+  private cloneClip(clip: FakeClip): FakeClip {
+    return { ...clip, id: this.mintClipId(), notes: this.cloneNotes(clip.notes) };
+  }
+
+  private cloneDevice(device: FakeDevice): FakeDevice {
+    return {
+      ...device,
+      id: `d${++this.counters.device}`,
+      params: device.params.map((p) => ({
+        ...p,
+        valueItems: p.valueItems ? [...p.valueItems] : undefined,
+      })),
+    };
+  }
+
+  private cloneTrack(source: FakeTrack, name?: string): FakeTrack {
+    const clips = new Map<SceneId, FakeClip>();
+    for (const [sceneId, clip] of source.clips) clips.set(sceneId, this.cloneClip(clip));
+    return {
+      id: `t${++this.counters.track}`,
+      // Live keeps the source name on duplicate (pinned by self-test).
+      name: name ?? source.name,
+      type: source.type,
+      muted: source.muted,
+      soloed: source.soloed,
+      armed: source.armed,
+      clips,
+      devices: source.devices.map((d) => this.cloneDevice(d)),
+      mixer: {
+        volume: source.mixer.volume,
+        pan: source.mixer.pan,
+        sends: new Map(source.mixer.sends),
+      },
+    };
   }
 
   private summarize(track: FakeTrack): TrackSummary {

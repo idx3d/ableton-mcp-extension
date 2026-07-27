@@ -116,8 +116,17 @@ export async function runSelfTest(
     }
   };
 
+  /**
+   * Names the call about to run. Every report line streams to the Extension
+   * Host log as it happens, so if a call takes Live down with it the last
+   * STEP line names the culprit — checks only report after the fact, which a
+   * crash never reaches.
+   */
+  const step = (label: string): void => report(`STEP: ${label}`);
+
   const createdTrackIds: string[] = [];
   let createdSceneIds: string[] = [];
+  let createdCueIds: string[] = [];
 
   const initial = await deps.inspector.getSet();
   const originalTempo = initial.tempo;
@@ -303,10 +312,131 @@ export async function runSelfTest(
       report("SKIP: mixer send check — the set has no return tracks.");
     }
 
+    // --- v2 quick wins: cue points (add → rename → delete round-trip) ---
+    step("updateSong addCues (beats 8 and 16)");
+    const cueAdd = await deps.song.updateSong({
+      addCues: [{ timeBeats: 8, name: `${NAME_PREFIX} Cue` }, { timeBeats: 16 }],
+    });
+    const cue = cueAdd.addedCues[0];
+    check("add cue point at beat 8", approx(cue?.timeBeats, 8), 8, cue?.timeBeats);
+    // Divergence probe: FakeLive names an unnamed cue "Cue N"; real Live derives
+    // a default locator name from the position. The two cannot both be asserted,
+    // so this is a REPORTED observation — an in-Live run records Live's value
+    // (tracked in docs/smoke-runbook.md's deferred verifications).
+    const unnamedCue = cueAdd.addedCues[1];
+    if (unnamedCue) {
+      createdCueIds.push(unnamedCue.id);
+      check(
+        "add cue point with no name at beat 16",
+        approx(unnamedCue.timeBeats, 16),
+        16,
+        unnamedCue.timeBeats,
+      );
+      report(
+        `OBSERVED: default locator name for an unnamed cue at beat 16 = ${fmt(unnamedCue.name)} (FakeLive placeholder: "Cue N").`,
+      );
+      step("updateSong deleteCueIds (unnamed cue)");
+      await deps.song.updateSong({ deleteCueIds: [unnamedCue.id] });
+      createdCueIds = createdCueIds.filter((id) => id !== unnamedCue.id);
+    } else {
+      fail("add cue point with no name at beat 16", "a second cue", "none returned");
+    }
+    if (cue) {
+      createdCueIds.push(cue.id);
+      step("updateSong renameCues");
+      await deps.song.updateSong({
+        renameCues: [{ id: cue.id, name: `${NAME_PREFIX} Cue v2` }],
+      });
+      const renamedCue = (await deps.inspector.getSet()).cues?.find(
+        (c) => c.id === cue.id,
+      );
+      check(
+        "rename cue point",
+        renamedCue?.name === `${NAME_PREFIX} Cue v2`,
+        `${NAME_PREFIX} Cue v2`,
+        renamedCue?.name,
+      );
+      step("updateSong deleteCueIds (named cue)");
+      await deps.song.updateSong({ deleteCueIds: [cue.id] });
+      createdCueIds = createdCueIds.filter((id) => id !== cue.id);
+      const cueGone = !((await deps.inspector.getSet()).cues ?? []).some(
+        (c) => c.id === cue.id,
+      );
+      check("delete cue point", cueGone, "absent", cueGone ? "absent" : "present");
+    }
+    await expectError("stale cue ID -> NOT_FOUND", "NOT_FOUND", () =>
+      deps.song.updateSong({ deleteCueIds: ["q999999"] }),
+    );
+
+    // --- v2 quick wins: duplicate track / scene / device ---
+    step("createTracks duplicateOf (drums)");
+    const [dupTrack] = await deps.tracks.createTracks([{ duplicateOf: drums.id }]);
+    createdTrackIds.push(dupTrack.id);
+    check(
+      "duplicate track keeps source name",
+      dupTrack.name === drums.name,
+      drums.name,
+      dupTrack.name,
+    );
+    check(
+      "duplicate track copies clips",
+      dupTrack.clipCount >= 1,
+      ">= 1 clip",
+      dupTrack.clipCount,
+    );
+    step("createScenes duplicateOf (Verse)");
+    const [dupScene] = await deps.tracks.createScenes(undefined, sceneA.id);
+    createdSceneIds.push(dupScene.id);
+    check(
+      "duplicate scene keeps source name",
+      dupScene.name === "Verse",
+      "Verse",
+      dupScene.name,
+    );
+    step("duplicateDevice (Reverb)");
+    const reverbCopy = await deps.devices.duplicateDevice(reverb.id);
+    check(
+      "duplicate device -> Reverb copy",
+      reverbCopy.name === "Reverb",
+      "Reverb",
+      reverbCopy.name,
+    );
+
+    // --- v2 quick wins: warp control ---
+    await expectError("warp on MIDI clip -> UNSUPPORTED", "UNSUPPORTED", () =>
+      deps.clips.updateClip(drumClip.id, { warping: false }),
+    );
+
+    // --- v2 quick wins: Simpler sample ---
+    step("insertDevice Simpler (bass)");
+    const simpler = await deps.devices.insertDevice(bass.id, "Simpler");
+    check("insert Simpler", simpler.name === "Simpler", "Simpler", simpler.name);
+    await expectError("Simpler sample on Reverb -> UNSUPPORTED", "UNSUPPORTED", () =>
+      deps.devices.setSimplerSample(reverb.id, SELF_TEST_SAMPLE),
+    );
+    try {
+      step(`setSimplerSample (${SELF_TEST_SAMPLE})`);
+      const { samplePath } = await deps.devices.setSimplerSample(
+        simpler.id,
+        SELF_TEST_SAMPLE,
+      );
+      check(
+        "Simpler sample replaced",
+        samplePath.length > 0,
+        "non-empty path",
+        samplePath,
+      );
+    } catch (err) {
+      report(
+        `SKIP: Simpler sample check — ${errText(err)}. Provide a sample at ${SELF_TEST_SAMPLE} to enable it.`,
+      );
+    }
+
     // --- contract: audio-clip note edit -> INVALID_INPUT ---
     // Needs a real sample on disk in Live; degrades to SKIP if unavailable.
     let audioClipId: string | undefined;
     try {
+      step(`createAudioClip (${SELF_TEST_SAMPLE})`);
       const audioClip = await deps.clips.createAudioClip({
         trackId: audio.id,
         sceneId: sceneA.id,
@@ -323,6 +453,31 @@ export async function runSelfTest(
       const id = audioClipId;
       await expectError("audio-clip note edit -> INVALID_INPUT", "INVALID_INPUT", () =>
         deps.clips.editClipNotes(id, { remove: true }),
+      );
+
+      // Divergence probe: read the FRESH clip's warp state before any warp
+      // write. FakeLive hard-codes warping true / warpMode "beats"; Live's real
+      // defaults depend on the file and preferences, so the values are REPORTED
+      // and only their presence is asserted.
+      const fresh = await deps.inspector.getClip(id);
+      check(
+        "fresh audio clip reports warp state",
+        fresh.warping !== undefined,
+        "warping present",
+        fresh.warping,
+      );
+      report(
+        `OBSERVED: fresh audio-clip warp defaults = warping ${fmt(fresh.warping)}, warpMode ${fmt(fresh.warpMode)} (FakeLive: true / "beats").`,
+      );
+
+      step("updateClip warping/warpMode -> tones");
+      await deps.clips.updateClip(id, { warping: true, warpMode: "tones" });
+      const warped = await deps.inspector.getClip(id);
+      check(
+        "audio clip warpMode -> tones",
+        warped.warpMode === "tones",
+        "tones",
+        warped.warpMode,
       );
     }
   } finally {
@@ -342,6 +497,11 @@ export async function runSelfTest(
       const scenesToDelete = createdSceneIds.filter((id) => liveSceneIds.has(id));
       if (scenesToDelete.length > 0) await deps.tracks.deleteScenes(scenesToDelete);
       if (tracksToDelete.length > 0) await deps.tracks.deleteTracks(tracksToDelete);
+      const liveCueIds = new Set((set.cues ?? []).map((c) => c.id));
+      const cuesToDelete = createdCueIds.filter((id) => liveCueIds.has(id));
+      if (cuesToDelete.length > 0) {
+        await deps.song.updateSong({ deleteCueIds: cuesToDelete });
+      }
       report(
         `Cleanup complete: removed ${tracksToDelete.length} track(s), ${scenesToDelete.length} scene(s).`,
       );

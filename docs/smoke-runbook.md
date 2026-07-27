@@ -74,16 +74,21 @@ back to `tempDirectory` and then an OS-temp path, logging which it used.
 - [x] `npm test && npm run typecheck && npm run lint` green (CI world).
 - [x] `npm run typecheck:sdk` + `npm run build` + `npm run package` green with the SDK.
 - [x] `.ablx` artifact produced locally; nothing Ableton-derived committed.
-- [x] **Self-test green on macOS** — Live 12.4.5b8, 2026-07-24, **20/20, 0 failed**
+- [x] **Self-test green on macOS — v1 surface only** — Live 12.4.5b8, 2026-07-24, **20/20, 0 failed**
       (required the ADR 0009 fixes: `global`→`globalThis`, custom `node:http` transport + host-globals prelude, and `toNumber` bigint coercion).
+- [ ] **Self-test re-run green on macOS including the v2a checks.** The 20/20 run predates
+      Plan 4a: the self-test has since grown from 20 to 35 checks and the 15 new ones (cue
+      points, duplicate, warp, Simpler sample) have never executed against real Live.
 - [ ] **Self-test green on Windows** (all checks PASS, 0 failed).
 - [ ] Only then tag `v0.1.0`.
 
 ## Deferred in-Live verifications
 
 These are assumptions baked into the SDK adapter (all commented in code) that
-FakeLive cannot prove. Status below reflects the **2026-07-24 macOS run (20/20)**.
-The unchecked ones passed indirectly but were not _asserted_ — confirm by eye when
+FakeLive cannot prove. Status below reflects the **2026-07-24 macOS run (20/20)**,
+which covered the **v1 surface only** — everything under "Plan 4a (v2a)" below was
+added after that run and has **never executed in Live**.
+The unchecked v1 ones passed indirectly but were not _asserted_ — confirm by eye when
 convenient (they are not release blockers given the green run).
 
 - [x] **Clip color always present.** Fresh clips read back a `color`; no contract
@@ -106,6 +111,30 @@ convenient (they are not release blockers given the green run).
       `NOT_FOUND` passed, exercising handle resolution across the session.
 - [ ] **`transact` atomicity** — writes ran through `withinTransaction` and the set
       was left clean, but no _mid-transaction failure_ path was forced. Optional.
+
+#### Plan 4a (v2a) — none of these have run in Live
+
+- [ ] **Duplicates land in reverse order.** `Song.duplicateTrack`/`duplicateScene` and
+      `Track.duplicateDevice` are documented to insert right after the _original_, so N
+      copies of one source should end up reversed (last created closest to the source).
+      FakeLive and the tool descriptions both assert this. Duplicate one track twice in a
+      row and confirm the arrangement order.
+- [ ] **Live's default locator name.** `update_song` with an `addCues` entry that has no
+      `name` lets Live derive the name. FakeLive's placeholder is `"Cue N"`. The self-test
+      adds one unnamed cue at beat 16 and prints an `OBSERVED:` line with the real value —
+      read it off the transcript and record it here.
+- [ ] **Fresh-audio-clip warp defaults.** FakeLive hard-codes `warping: true`,
+      `warpMode: "beats"` on a newly created audio clip. The self-test reads a fresh clip
+      _before_ writing warp fields and prints an `OBSERVED:` line — record Live's actual
+      defaults (they may depend on the file and on Live's Auto-Warp preference).
+- [ ] **`Simpler.replaceSample` on a bad path.** The adapter assumes Live throws for a
+      missing/unreadable file and maps it to `NOT_FOUND`. Nothing pins this: the self-test's
+      Simpler check degrades to SKIP exactly when the sample is absent. Call
+      `set_simpler_sample` with a nonexistent path by hand and confirm the code and message.
+- [ ] **New `liveRefusal` mappings** (`createCuePoint` → `CONFLICT`, `deleteCuePoint` →
+      `NOT_FOUND`, the three duplicate calls → `UNSUPPORTED`). The codes are judgement calls
+      about how Live rejects these; adding two locators at the same beat is the easiest one
+      to force.
 
 ### Known follow-up (not a release blocker)
 

@@ -49,4 +49,37 @@ describe("DeviceService", () => {
     });
     expect(fake.undoSteps).toEqual(["insert_device"]);
   });
+
+  it("setSimplerSample rejects relative paths without touching the port", async () => {
+    await devices.insertDevice("t1", "Simpler");
+    await expect(
+      devices.setSimplerSample("d1", "relative/path.wav"),
+    ).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringContaining("must be absolute"),
+    });
+    expect(fake.undoSteps).toEqual(["insert_device"]);
+  });
+
+  it("setSimplerSample fails fast on stale device IDs before mutating", async () => {
+    await expect(
+      devices.setSimplerSample("d9", "/samples/kick.wav"),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(fake.undoSteps).toEqual([]);
+  });
+
+  it("setSimplerSample succeeds with absolute Unix and Windows paths", async () => {
+    const simpler = await devices.insertDevice("t1", "Simpler");
+    const unixResult = await devices.setSimplerSample(simpler.id, "/samples/kick.wav");
+    expect(unixResult).toEqual({ samplePath: "/samples/kick.wav" });
+    const winResult = await devices.setSimplerSample(simpler.id, "C:\\samples\\drum.wav");
+    expect(winResult).toEqual({ samplePath: "C:\\samples\\drum.wav" });
+    expect(fake.undoSteps).toEqual([
+      "insert_device",
+      "set_simpler_sample",
+      "set_simpler_sample",
+    ]);
+  });
 });

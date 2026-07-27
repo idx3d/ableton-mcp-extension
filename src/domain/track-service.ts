@@ -19,6 +19,14 @@ export class TrackService {
     if (specs.length === 0) {
       throw new PortError("INVALID_INPUT", "specs must not be empty");
     }
+    for (const spec of specs) {
+      if ((spec.type !== undefined) === (spec.duplicateOf !== undefined)) {
+        throw new PortError(
+          "INVALID_INPUT",
+          "each track spec needs exactly one of type or duplicateOf",
+        );
+      }
+    }
     return this.live.transact("create_tracks", () => this.live.createTracks(specs));
   }
 
@@ -36,11 +44,25 @@ export class TrackService {
     return this.live.transact("delete_tracks", () => this.live.deleteTracks(ids));
   }
 
-  async createScenes(count: number): Promise<SceneSummary[]> {
-    if (!Number.isInteger(count) || count < 1 || count > 64) {
-      throw new PortError("INVALID_INPUT", `count ${count} must be an integer 1-64`);
+  async createScenes(
+    count: number | undefined,
+    duplicateOf?: SceneId,
+  ): Promise<SceneSummary[]> {
+    const n = count ?? (duplicateOf !== undefined ? 1 : undefined);
+    if (n === undefined) {
+      throw new PortError(
+        "INVALID_INPUT",
+        "provide count and/or duplicateOf",
+        "count appends empty scenes; duplicateOf copies an existing scene.",
+      );
     }
-    return this.live.transact("create_scenes", () => this.live.createScenes(count));
+    if (!Number.isInteger(n) || n < 1 || n > 64) {
+      throw new PortError("INVALID_INPUT", `count ${n} must be an integer 1-64`);
+    }
+    if (duplicateOf !== undefined) await this.requireSceneId(duplicateOf);
+    return this.live.transact("create_scenes", () =>
+      this.live.createScenes(n, duplicateOf),
+    );
   }
 
   private async requireSceneId(id: SceneId): Promise<void> {

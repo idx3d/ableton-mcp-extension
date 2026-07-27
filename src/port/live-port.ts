@@ -16,6 +16,7 @@ import type {
   TrackPatch,
   TrackSpec,
   TrackSummary,
+  UpdateSongResult,
 } from "./types.js";
 
 /**
@@ -34,7 +35,7 @@ export interface LivePort {
   createTracks(specs: TrackSpec[]): Promise<TrackSummary[]>;
   updateTrack(id: TrackId, patch: TrackPatch): Promise<void>;
   deleteTracks(ids: TrackId[]): Promise<void>;
-  createScenes(count: number): Promise<SceneSummary[]>;
+  createScenes(count: number, duplicateOf?: SceneId): Promise<SceneSummary[]>;
   updateScene(id: SceneId, patch: ScenePatch): Promise<void>;
   deleteScenes(ids: SceneId[]): Promise<void>;
   createMidiClip(
@@ -58,10 +59,14 @@ export interface LivePort {
     deviceName: string,
     index?: number,
   ): Promise<DeviceDetail>;
+  /** Duplicate a device; the copy is inserted directly after the original. */
+  duplicateDevice(id: DeviceId): Promise<DeviceDetail>;
   setDeviceParams(id: DeviceId, params: Record<string, number>): Promise<void>;
   deleteDevice(id: DeviceId): Promise<void>;
   setMixer(trackId: TrackId, patch: MixerPatch): Promise<void>;
-  updateSong(patch: SongPatch): Promise<void>;
+  updateSong(patch: SongPatch): Promise<UpdateSongResult>;
+  /** Replace the sample of a Simpler device (absolute file path). */
+  setSimplerSample(id: DeviceId, filePath: string): Promise<{ samplePath: string }>;
 
   /** Group all writes inside fn into one undo step named undoLabel. */
   transact<T>(undoLabel: string, fn: () => Promise<T>): Promise<T>;
